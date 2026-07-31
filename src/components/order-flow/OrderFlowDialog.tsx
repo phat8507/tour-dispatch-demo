@@ -47,6 +47,7 @@ interface OrderFlowDialogProps {
   services: Service[];
   locations: Location[];
   currentTime: string;
+  onSuggest?: (draft: OrderDraft, suggestions: AssignmentSuggestion[] | null) => void;
   onConfirm: (request: OrderConfirmationRequest) => {
     ok: boolean;
     message?: string;
@@ -59,6 +60,7 @@ export function OrderFlowDialog({
   services,
   locations,
   currentTime,
+  onSuggest,
   onConfirm,
 }: OrderFlowDialogProps) {
   const [open, setOpen] = useState(false);
@@ -92,6 +94,12 @@ export function OrderFlowDialog({
     },
     [],
   );
+
+  useEffect(() => {
+    if (onSuggest) {
+      onSuggest(draft, suggestions);
+    }
+  }, [suggestions, draft, onSuggest]);
 
   function resetTransientState() {
     cancelPendingCalculation();

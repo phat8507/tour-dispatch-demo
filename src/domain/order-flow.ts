@@ -296,7 +296,7 @@ export function suggestOrderAssignments(
   };
 }
 
-function addMinutesPreservingOffset(
+export function addMinutesPreservingOffset(
   timestamp: string,
   minutes: number,
 ): string {
