@@ -138,13 +138,49 @@ export function generateAssignmentId(
   )}`;
 }
 
-function hasExplicitOffset(timestamp: string): boolean {
-  return /(?:Z|[+-]\d{2}:\d{2})$/.test(timestamp);
-}
-
 function isValidExplicitTimestamp(timestamp: string): boolean {
+  const match = timestamp.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-](\d{2}):(\d{2}))$/,
+  );
+  if (!match) {
+    return false;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6] ?? "0");
+  const offsetHour = Number(match[8] ?? "0");
+  const offsetMinute = Number(match[9] ?? "0");
+  const leapYear =
+    year % 400 === 0 || (year % 4 === 0 && year % 100 !== 0);
+  const daysInMonth = [
+    31,
+    leapYear ? 29 : 28,
+    31,
+    30,
+    31,
+    30,
+    31,
+    31,
+    30,
+    31,
+    30,
+    31,
+  ];
+
   return (
-    hasExplicitOffset(timestamp) &&
+    month >= 1 &&
+    month <= 12 &&
+    day >= 1 &&
+    day <= daysInMonth[month - 1] &&
+    hour <= 23 &&
+    minute <= 59 &&
+    second <= 59 &&
+    offsetHour <= 23 &&
+    offsetMinute <= 59 &&
     Number.isFinite(new Date(timestamp).getTime())
   );
 }
@@ -296,6 +332,13 @@ export function confirmOrderAssignment(
       ok: false,
       state: input.state,
       error: "EMPLOYEE_REQUIRED",
+    };
+  }
+  if (input.state.orders.some((order) => order.id === input.order.id)) {
+    return {
+      ok: false,
+      state: input.state,
+      error: "STALE_SUGGESTION",
     };
   }
 

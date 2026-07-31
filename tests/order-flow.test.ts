@@ -157,6 +157,48 @@ describe("order-flow immutable state", () => {
 });
 
 describe("order-flow confirmation revalidation", () => {
+  it("rejects a repeated confirmation for an order already in state", () => {
+    const { state, result } = getSuggestion();
+    const selectedEmployeeId = result.suggestions[0].employeeId;
+    const firstConfirmation = confirmOrderAssignment({
+      confirmed: true,
+      order: result.order,
+      selectedEmployeeId,
+      state,
+      employees: mockEmployees,
+      services: mockServices,
+      locations: mockLocations,
+      currentTime: DEMO_TIME,
+    });
+    expect(firstConfirmation.ok).toBe(true);
+    if (!firstConfirmation.ok) {
+      throw new Error("Expected first confirmation to succeed.");
+    }
+
+    const repeatedConfirmation = confirmOrderAssignment({
+      confirmed: true,
+      order: result.order,
+      selectedEmployeeId,
+      state: firstConfirmation.state,
+      employees: mockEmployees,
+      services: mockServices,
+      locations: mockLocations,
+      currentTime: DEMO_TIME,
+    });
+
+    expect(repeatedConfirmation).toEqual({
+      ok: false,
+      state: firstConfirmation.state,
+      error: "STALE_SUGGESTION",
+    });
+    expect(firstConfirmation.state.orders).toHaveLength(
+      state.orders.length + 1,
+    );
+    expect(firstConfirmation.state.assignments).toHaveLength(
+      state.assignments.length + 1,
+    );
+  });
+
   it("rejects a stale suggestion that has become unavailable", () => {
     const { state, result } = getSuggestion();
     const selectedEmployeeId = result.suggestions[0].employeeId;
@@ -287,6 +329,27 @@ describe("order-flow confirmation revalidation", () => {
 });
 
 describe("order-flow validation", () => {
+  it("rejects an impossible calendar date instead of normalizing it", () => {
+    const state = createDispatchState(mockOrders, mockAssignments);
+    const result = suggestOrderAssignments({
+      draft: {
+        ...feasibleDraft,
+        requestedTime: "2026-02-30T12:00:00+07:00",
+      },
+      state,
+      employees: mockEmployees,
+      services: mockServices,
+      locations: mockLocations,
+      currentTime: DEMO_TIME,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error("Expected an impossible calendar date to fail.");
+    }
+    expect(result.errors.requestedTime).toBeDefined();
+  });
+
   it("rejects unknown IDs, duplicate services, and invalid timestamps", () => {
     const state = createDispatchState(mockOrders, mockAssignments);
     const invalidDraft: OrderDraft = {
