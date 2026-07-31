@@ -14,12 +14,28 @@ export function addMinutes(timestamp: string, minutes: number): string {
   return new Date(parseTimestamp(timestamp) + minutes * 60_000).toISOString();
 }
 
+export function isValidInterval(
+  startTime: string,
+  endTime: string,
+): boolean {
+  const startTimeMs = parseTimestamp(startTime);
+  const endTimeMs = parseTimestamp(endTime);
+
+  return (
+    Number.isFinite(startTimeMs) &&
+    Number.isFinite(endTimeMs) &&
+    startTimeMs < endTimeMs
+  );
+}
+
 export function isWithinWorkingHours(
   employee: Employee,
   startTime: string,
   endTime: string,
 ): boolean {
   return (
+    isValidInterval(startTime, endTime) &&
+    isValidInterval(employee.workingStart, employee.workingEnd) &&
     parseTimestamp(startTime) >= parseTimestamp(employee.workingStart) &&
     parseTimestamp(endTime) <= parseTimestamp(employee.workingEnd)
   );
@@ -37,6 +53,7 @@ export function getCurrentAssignment(
       (assignment) =>
         assignment.employeeId === employeeId &&
         CONFIRMED_ASSIGNMENT_STATUSES.has(assignment.status) &&
+        isValidInterval(assignment.startTime, assignment.endTime) &&
         parseTimestamp(assignment.startTime) <= currentTimeMs &&
         parseTimestamp(assignment.endTime) > currentTimeMs,
     )
@@ -60,6 +77,7 @@ export function getLatestCompletedAssignment(
       (assignment) =>
         assignment.employeeId === employeeId &&
         assignment.status === "COMPLETED" &&
+        isValidInterval(assignment.startTime, assignment.endTime) &&
         parseTimestamp(assignment.endTime) <= currentTimeMs,
     )
     .slice()
@@ -80,11 +98,16 @@ export function hasConfirmedOverlap(
   const proposedStartMs = parseTimestamp(proposedStartTime);
   const proposedEndMs = parseTimestamp(proposedEndTime);
 
+  if (!isValidInterval(proposedStartTime, proposedEndTime)) {
+    return false;
+  }
+
   return assignments.some(
     (assignment) =>
       assignment.employeeId === employeeId &&
       assignment.orderId !== excludedOrderId &&
       CONFIRMED_ASSIGNMENT_STATUSES.has(assignment.status) &&
+      isValidInterval(assignment.startTime, assignment.endTime) &&
       parseTimestamp(assignment.startTime) < proposedEndMs &&
       parseTimestamp(assignment.endTime) > proposedStartMs,
   );

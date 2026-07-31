@@ -11,6 +11,7 @@ import {
   getCurrentAssignment,
   getLatestCompletedAssignment,
   hasConfirmedOverlap,
+  isValidInterval,
   isWithinWorkingHours,
   parseTimestamp,
 } from "./availability";
@@ -39,11 +40,12 @@ interface CandidateContext {
   currentAssignment: Assignment | undefined;
 }
 
-function requiredServiceIds(order: Order): string[] {
+function requiredServiceIds(order: Order): string[] | undefined {
   const ids =
-    order.serviceIds && order.serviceIds.length > 0
-      ? order.serviceIds
-      : [order.serviceId];
+    order.serviceIds === undefined ? [order.serviceId] : order.serviceIds;
+  if (ids.length === 0) {
+    return undefined;
+  }
 
   return Array.from(new Set(ids));
 }
@@ -166,11 +168,53 @@ function buildCandidateContext(
 function assignmentsOnRequestedDay(
   assignments: readonly Assignment[],
   requestedTime: string,
+  workingEmployeeIds: ReadonlySet<Employee["id"]>,
 ): Assignment[] {
-  const requestedDate = requestedTime.slice(0, 10);
-  return assignments.filter(
-    (assignment) => assignment.startTime.slice(0, 10) === requestedDate,
+  const requestedOffsetMinutes = getTimestampOffsetMinutes(requestedTime);
+  const requestedDate = getDateAtOffset(
+    requestedTime,
+    requestedOffsetMinutes,
   );
+  if (requestedDate === undefined) {
+    return [];
+  }
+
+  return assignments.filter(
+    (assignment) =>
+      workingEmployeeIds.has(assignment.employeeId) &&
+      getDateAtOffset(
+        assignment.startTime,
+        requestedOffsetMinutes,
+      ) === requestedDate,
+  );
+}
+
+function getTimestampOffsetMinutes(timestamp: string): number {
+  if (timestamp.endsWith("Z")) {
+    return 0;
+  }
+
+  const match = timestamp.match(/([+-])(\d{2}):(\d{2})$/);
+  if (!match) {
+    return 0;
+  }
+
+  const direction = match[1] === "+" ? 1 : -1;
+  return direction * (Number(match[2]) * 60 + Number(match[3]));
+}
+
+function getDateAtOffset(
+  timestamp: string,
+  offsetMinutes: number,
+): string | undefined {
+  const timestampMs = parseTimestamp(timestamp);
+  if (!Number.isFinite(timestampMs)) {
+    return undefined;
+  }
+
+  return new Date(timestampMs + offsetMinutes * 60_000)
+    .toISOString()
+    .slice(0, 10);
 }
 
 function scoreCandidate(params: {
@@ -279,6 +323,10 @@ export function suggestAssignments(
   input: SuggestAssignmentsInput,
 ): AssignmentSuggestion[] {
   const requiredServices = requiredServiceIds(input.order);
+  if (requiredServices === undefined) {
+    return [];
+  }
+
   const serviceDuration = totalServiceDuration(
     requiredServices,
     input.services,
@@ -296,16 +344,35 @@ export function suggestAssignments(
     input.order.requestedTime,
     serviceDuration,
   );
-  const assignmentsToday = assignmentsOnRequestedDay(
-    input.assignments,
-    input.order.requestedTime,
+  const cancelledOrderIds = new Set(
+    input.orders
+      .filter((order) => order.status === "CANCELLED")
+      .map((order) => order.id),
   );
-  const workingEmployees = input.employees.filter(
+  const activeAssignments = input.assignments.filter(
+    (assignment) =>
+      !cancelledOrderIds.has(assignment.orderId) &&
+      isValidInterval(assignment.startTime, assignment.endTime),
+  );
+  const uniqueEmployees = Array.from(
+    new Map(
+      input.employees.map((employee) => [employee.id, employee]),
+    ).values(),
+  );
+  const workingEmployees = uniqueEmployees.filter(
     (employee) => !employee.isOff,
+  );
+  const workingEmployeeIds = new Set(
+    workingEmployees.map((employee) => employee.id),
+  );
+  const assignmentsToday = assignmentsOnRequestedDay(
+    activeAssignments,
+    input.order.requestedTime,
+    workingEmployeeIds,
   );
   const suggestions: AssignmentSuggestion[] = [];
 
-  for (const employee of input.employees) {
+  for (const employee of uniqueEmployees) {
     if (
       employee.isOff ||
       !isWithinWorkingHours(
@@ -320,7 +387,7 @@ export function suggestAssignments(
         employee.id,
         input.order.requestedTime,
         proposedEndTime,
-        input.assignments,
+        activeAssignments,
         input.order.id,
       )
     ) {
@@ -329,7 +396,7 @@ export function suggestAssignments(
 
     const context = buildCandidateContext(
       employee,
-      input.assignments,
+      activeAssignments,
       input.orders,
       input.locations,
       input.currentTime,
@@ -345,7 +412,11 @@ export function suggestAssignments(
     const maximumDistance = isRefill(input.order)
       ? REFILL_MAX_DISTANCE_KM
       : NEW_TOUR_MAX_DISTANCE_KM;
-    if (travel.distanceKm > maximumDistance) {
+    if (
+      !Number.isFinite(travel.distanceKm) ||
+      !Number.isFinite(travel.travelMinutes) ||
+      travel.distanceKm > maximumDistance
+    ) {
       continue;
     }
 

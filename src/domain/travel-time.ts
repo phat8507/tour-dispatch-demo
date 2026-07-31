@@ -17,10 +17,25 @@ function degreesToRadians(degrees: number): number {
   return degrees * (Math.PI / 180);
 }
 
+function hasValidCoordinates(location: Location): boolean {
+  return (
+    Number.isFinite(location.latitude) &&
+    Number.isFinite(location.longitude) &&
+    location.latitude >= -90 &&
+    location.latitude <= 90 &&
+    location.longitude >= -180 &&
+    location.longitude <= 180
+  );
+}
+
 export function calculateHaversineDistanceKm(
   origin: Location,
   destination: Location,
 ): number {
+  if (!hasValidCoordinates(origin) || !hasValidCoordinates(destination)) {
+    return Number.NaN;
+  }
+
   const latitudeDelta = degreesToRadians(
     destination.latitude - origin.latitude,
   );
@@ -30,11 +45,12 @@ export function calculateHaversineDistanceKm(
   const originLatitude = degreesToRadians(origin.latitude);
   const destinationLatitude = degreesToRadians(destination.latitude);
 
-  const haversine =
+  const unboundedHaversine =
     Math.sin(latitudeDelta / 2) ** 2 +
     Math.cos(originLatitude) *
       Math.cos(destinationLatitude) *
       Math.sin(longitudeDelta / 2) ** 2;
+  const haversine = Math.min(1, Math.max(0, unboundedHaversine));
 
   return (
     2 *
@@ -46,6 +62,13 @@ export function calculateHaversineDistanceKm(
 export class DeterministicTravelTimeProvider implements TravelTimeProvider {
   estimate(origin: Location, destination: Location): TravelEstimate {
     const distanceKm = calculateHaversineDistanceKm(origin, destination);
+    if (!Number.isFinite(distanceKm)) {
+      return {
+        distanceKm: Number.NaN,
+        travelMinutes: Number.NaN,
+      };
+    }
+
     const drivingMinutes =
       (distanceKm / AVERAGE_SPEED_KM_PER_HOUR) * 60;
 
