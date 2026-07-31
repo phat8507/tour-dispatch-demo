@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   getTimelineOffsetPercentage,
   getTimelineWidthPercentage,
+  formatTimeHHMMInTimeZone,
   TIMELINE_START_HOUR,
   TIMELINE_END_HOUR,
   ASSIGNMENT_STATUS_LABEL,
@@ -308,6 +309,35 @@ describe("Domain identifiers remain English", () => {
     urgencies.forEach((u) => {
       expect(u).toMatch(/^[A-Z_]+$/);
     });
+  });
+});
+
+describe("formatTimeHHMMInTimeZone", () => {
+  it("formats UTC engine timestamps in the demo timezone", () => {
+    expect(
+      formatTimeHHMMInTimeZone(
+        "2026-07-31T03:15:00.000Z",
+        "Asia/Ho_Chi_Minh",
+      ),
+    ).toBe("10:15");
+  });
+
+  it("returns a placeholder for an invalid timestamp", () => {
+    expect(
+      formatTimeHHMMInTimeZone("not-a-time", "Asia/Ho_Chi_Minh"),
+    ).toBe("--:--");
+  });
+});
+
+describe("Canonical and compatibility labels", () => {
+  it("maps STRONG and EXPERT to Cứng", () => {
+    expect(PERFORMANCE_LEVEL_LABEL.STRONG).toBe("Cứng");
+    expect(PERFORMANCE_LEVEL_LABEL.EXPERT).toBe("Cứng");
+  });
+
+  it("maps REFILL and MILEAGE to Đơn dặm", () => {
+    expect(ORDER_TYPE_LABEL.REFILL).toBe("Đơn dặm");
+    expect(ORDER_TYPE_LABEL.MILEAGE).toBe("Đơn dặm");
   });
 });
 

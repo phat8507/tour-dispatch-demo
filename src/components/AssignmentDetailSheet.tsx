@@ -23,7 +23,7 @@ interface AssignmentDetailSheetProps {
   order: Order | null;
   employee: Employee | null;
   location: Location | null;
-  service: Service | null;
+  services: Service[];
   open: boolean;
   onClose: () => void;
 }
@@ -49,7 +49,7 @@ export function AssignmentDetailSheet({
   order,
   employee,
   location,
-  service,
+  services,
   open,
   onClose,
 }: AssignmentDetailSheetProps) {
@@ -81,8 +81,25 @@ export function AssignmentDetailSheet({
 
           <Separator className="my-3" />
           <p className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-2">Dịch vụ</p>
-          <Row label="Tên dịch vụ" value={service?.name ?? order.serviceId} />
-          <Row label="Thời lượng" value={service ? `${service.durationMinutes} phút` : "—"} />
+          <Row
+            label="Tên dịch vụ"
+            value={
+              services.length > 0
+                ? services.map((service) => service.name).join(", ")
+                : order.serviceId
+            }
+          />
+          <Row
+            label="Thời lượng"
+            value={
+              services.length > 0
+                ? `${services.reduce(
+                    (total, service) => total + service.durationMinutes,
+                    0,
+                  )} phút`
+                : "—"
+            }
+          />
 
           <Separator className="my-3" />
           <p className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-2">Nhân viên</p>

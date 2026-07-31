@@ -58,6 +58,7 @@ export const ASSIGNMENT_STATUS_LABEL: Record<AssignmentStatus, string> = {
 };
 
 export const PERFORMANCE_LEVEL_LABEL: Record<PerformanceLevel, string> = {
+  STRONG: "Cứng",
   EXPERT: "Cứng",
   NORMAL: "Bình thường",
   NORMAL_WEAK: "Bình thường/Yếu",
@@ -66,6 +67,7 @@ export const PERFORMANCE_LEVEL_LABEL: Record<PerformanceLevel, string> = {
 
 export const ORDER_TYPE_LABEL: Record<OrderType, string> = {
   NEW_TOUR: "Tour mới",
+  REFILL: "Đơn dặm",
   MILEAGE: "Đơn dặm",
 };
 
@@ -85,4 +87,21 @@ export const BRANCH_LABEL: Record<BranchId, string> = {
 export function formatTimeHHMM(isoString: string): string {
   const match = isoString.match(/T(\d{2}:\d{2})/);
   return match ? match[1] : "--:--";
+}
+
+export function formatTimeHHMMInTimeZone(
+  isoString: string,
+  timeZone: string,
+): string {
+  const timestampMs = new Date(isoString).getTime();
+  if (!Number.isFinite(timestampMs)) {
+    return "--:--";
+  }
+
+  return new Intl.DateTimeFormat("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    timeZone,
+  }).format(new Date(timestampMs));
 }

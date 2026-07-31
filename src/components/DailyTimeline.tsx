@@ -32,12 +32,12 @@ interface AssignmentBlockProps {
   assignment: Assignment;
   order: Order | undefined;
   location: Location | undefined;
-  service: Service | undefined;
+  services: Service[];
   demoTime: string;
   onClick: () => void;
 }
 
-function AssignmentBlock({ assignment, order, location, service, demoTime, onClick }: AssignmentBlockProps) {
+function AssignmentBlock({ assignment, order, location, services, demoTime, onClick }: AssignmentBlockProps) {
   const displayStatus = calcStatus(assignment, demoTime);
   const colorClass = ASSIGNMENT_STATUS_COLORS[displayStatus];
   const left = getTimelineOffsetPercentage(assignment.startTime);
@@ -57,7 +57,11 @@ function AssignmentBlock({ assignment, order, location, service, demoTime, onCli
         <span className="text-xs font-semibold truncate">{order?.customerName ?? assignment.orderId}</span>
         <span className="text-[10px] opacity-75 truncate">{location?.name ?? ""}</span>
         <span className="text-[10px] opacity-75">{formatTimeHHMM(assignment.startTime)}–{formatTimeHHMM(assignment.endTime)}</span>
-        {service && <span className="text-[10px] opacity-75 truncate">{service.name}</span>}
+        {services.length > 0 && (
+          <span className="text-[10px] opacity-75 truncate">
+            {services.map((service) => service.name).join(", ")}
+          </span>
+        )}
       </div>
     </button>
   );
@@ -178,14 +182,19 @@ export function DailyTimeline({
                     /* Assignment blocks */
                     empAssignments.map((assign) => {
                       const order = orderMap.get(assign.orderId);
-                      const service = order ? serviceMap.get(order.serviceId) : undefined;
+                      const orderServiceIds = order
+                        ? order.serviceIds ?? [order.serviceId]
+                        : [];
+                      const orderServices = orderServiceIds
+                        .map((serviceId) => serviceMap.get(serviceId))
+                        .filter((service): service is Service => Boolean(service));
                       const location = order ? locationMap.get(order.locationId) : undefined;
                       return (
                         <AssignmentBlock
                           key={assign.id}
                           assignment={assign}
                           order={order}
-                          service={service}
+                          services={orderServices}
                           location={location}
                           demoTime={demoTime}
                           onClick={() => onAssignmentClick(assign)}

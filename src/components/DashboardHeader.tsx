@@ -29,7 +29,7 @@ export function DashboardHeader({ demoTime, onReset }: DashboardHeaderProps) {
         <p className="text-sm text-muted-foreground capitalize">{formattedDate}</p>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
         <Badge
           variant="secondary"
           className="px-3 py-1.5 text-sm font-medium bg-blue-50 text-blue-700 border-blue-200"
