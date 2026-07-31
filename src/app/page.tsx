@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import {
   mockEmployees,
   mockAssignments,
@@ -63,7 +63,7 @@ export default function DashboardPage() {
     }));
   }
 
-  function handleSuggest(draft: OrderDraft, suggestions: AssignmentSuggestion[] | null) {
+  const handleSuggest = useCallback((draft: OrderDraft, suggestions: AssignmentSuggestion[] | null) => {
     if (suggestions && suggestions.length > 0) {
       setNewCustomerLocationId(draft.locationId);
       setRecommendedEmployeeIds(suggestions.slice(0, 3).map(s => s.employeeId));
@@ -71,7 +71,7 @@ export default function DashboardPage() {
       setNewCustomerLocationId(null);
       setRecommendedEmployeeIds([]);
     }
-  }
+  }, []);
 
   function handleAssignmentClick(assignment: Assignment) {
     setSelectedAssignment(assignment);

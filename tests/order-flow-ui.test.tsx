@@ -39,6 +39,12 @@ function openCreateOrder() {
   return screen.getByRole("dialog", { name: "Tạo Đơn mới" });
 }
 
+function openTimeline() {
+  fireEvent.click(
+    screen.getByRole("button", { name: "Lịch chi tiết" }),
+  );
+}
+
 function fillValidOrder(
   dialog: HTMLElement,
   requestedTime = "2026-07-31T12:00:00+07:00",
@@ -204,6 +210,8 @@ describe("create-order workflow UI", () => {
     await waitFor(() => {
       expect(screen.queryByRole("dialog", { name: "Tạo Đơn mới" })).toBeNull();
     });
+    openTimeline();
+
     expect(
       screen.getByText(/Đã giao đơn order_demo_19 cho/),
     ).toBeDefined();
@@ -225,6 +233,8 @@ describe("create-order workflow UI", () => {
         name: "Xác nhận giao Đơn",
       }),
     );
+
+    openTimeline();
 
     const block = await waitFor(() => {
       const assignmentBlock = document.querySelector(
@@ -345,6 +355,8 @@ describe("create-order workflow UI", () => {
         name: "Khôi phục dữ liệu demo",
       }),
     );
+
+    openTimeline();
 
     expect(
       document.querySelector("#assignment-block-assignment_demo_19"),
