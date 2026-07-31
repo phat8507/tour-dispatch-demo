@@ -85,7 +85,7 @@ export const mockAssignments: Assignment[] = mockOrders.map((order, i) => {
   // MOCK_ASSUMPTION: We deterministically pick an employee that is not off (skipping emp_yen at index 8)
   const employeeIds = mockEmployees.filter(e => !e.isOff).map(e => e.id);
   const employeeId = employeeIds[i % employeeIds.length];
-  const isDelayed = i === 5; // one explicit delayed assignment
+  const isDelayed = i === 3; // one explicit delayed assignment that overlaps DEMO_TIME
   
   const startHour = 8 + Math.floor(i / 2);
   const startMinute = i % 2 === 0 ? 0 : 30;
