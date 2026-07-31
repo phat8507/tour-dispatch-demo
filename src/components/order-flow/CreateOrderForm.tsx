@@ -8,6 +8,7 @@ import {
   OrderDraftField,
 } from "@/domain/order-flow";
 import { Button } from "@/components/ui/button";
+import { RequestedTimeInput } from "./RequestedTimeInput";
 
 interface CreateOrderFormProps {
   draft: OrderDraft;
@@ -112,22 +113,14 @@ export function CreateOrderForm({
         <FieldError id="locationId-error" error={errors.locationId} />
       </div>
 
-      <div className="space-y-1.5">
-        <label htmlFor="requested-time" className="text-sm font-medium">
-          Giờ khách yêu cầu
-        </label>
-        <input
+        <RequestedTimeInput
           id="requested-time"
-          type="text"
-          placeholder="2026-07-31T12:00:00+07:00"
-          className={fieldClass}
           value={draft.requestedTime}
-          onChange={(event) => update("requestedTime", event.target.value)}
+          onChange={(value) => update("requestedTime", value)}
           aria-invalid={Boolean(errors.requestedTime)}
           aria-describedby={describedBy("requestedTime", errors)}
         />
         <FieldError id="requestedTime-error" error={errors.requestedTime} />
-      </div>
 
       <fieldset
         className="space-y-2 rounded-lg border border-gray-200 p-3"

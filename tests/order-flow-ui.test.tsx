@@ -49,9 +49,18 @@ function fillValidOrder(
   fireEvent.change(within(dialog).getByLabelText("Khu vực / địa điểm"), {
     target: { value: "loc_cs2_center" },
   });
-  fireEvent.change(within(dialog).getByLabelText("Giờ khách yêu cầu"), {
-    target: { value: requestedTime },
-  });
+  const match = requestedTime.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/);
+  if (match) {
+    fireEvent.change(within(dialog).getByLabelText("Ngày khách yêu cầu"), {
+      target: { value: match[1] },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Giờ"), {
+      target: { value: match[2] },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Phút"), {
+      target: { value: match[3] },
+    });
+  }
   fireEvent.click(within(dialog).getByLabelText(/Standard/));
   fireEvent.click(within(dialog).getByLabelText(/Quick/));
   fireEvent.change(within(dialog).getByLabelText("Loại đơn"), {
@@ -290,7 +299,7 @@ describe("create-order workflow UI", () => {
   it("shows the no-eligible state and creates no assignment", async () => {
     render(<DashboardPage />);
     const dialog = openCreateOrder();
-    fillValidOrder(dialog, "2026-07-31T10:01:00+07:00");
+    fillValidOrder(dialog, "2026-07-31T23:00:00+07:00");
 
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Tìm nhân viên" }),
