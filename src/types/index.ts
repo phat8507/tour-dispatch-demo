@@ -1,6 +1,6 @@
-export type PerformanceLevel = "EXPERT" | "NORMAL" | "NORMAL_WEAK" | "WEAK";
+export type PerformanceLevel = "STRONG" | "EXPERT" | "NORMAL" | "NORMAL_WEAK" | "WEAK";
 export type BranchId = "CS1" | "CS2";
-export type OrderType = "NEW_TOUR" | "MILEAGE";
+export type OrderType = "NEW_TOUR" | "REFILL" | "MILEAGE";
 export type Urgency = "PREBOOKED" | "IMMEDIATE";
 export type OrderStatus = "PENDING" | "ASSIGNED" | "COMPLETED" | "CANCELLED";
 export type AssignmentStatus = "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "DELAYED";
@@ -43,6 +43,7 @@ export interface Order {
   customerName: string;
   locationId: string;
   serviceId: string;
+  serviceIds?: string[];
   requestedTime: string; // ISO 8601 with +07:00
   orderType: OrderType;
   urgency: Urgency;
@@ -62,9 +63,9 @@ export interface Assignment {
 export interface AssignmentSuggestion {
   employeeId: string;
   score: number;
-  estimatedCompletionTime: string;
-  travelTimeMinutes: number;
-  estimatedArrivalTime: string;
+  estimatedAvailableAt: string;
+  estimatedTravelMinutes: number;
+  estimatedArrivalAt: string;
   reasons: string[];
   warnings: string[];
 }
