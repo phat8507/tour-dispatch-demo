@@ -1,30 +1,29 @@
-# Agent Instructions
+# Engineering Contract
 
-## General
+## Product boundaries
 
-- Read all files in /docs before editing code.
-- Do not invent business rules.
-- Do not modify BUSINESS_RULES.md unless explicitly requested.
-- Use TypeScript strict mode.
-- Avoid any.
-- Keep business logic outside React components.
-- Add tests for all scheduling logic.
-- Run lint, typecheck and tests before completing a task.
-- Do not introduce Google Maps, Supabase or external APIs.
-- Do not install a package unless necessary.
-- Keep the demo deterministic.
+- This repository is the deterministic tour-dispatch demo and its Production V1 preparation.
+- Production V1 serves only anh Ngoc through one OWNER account. Employees have neither accounts nor GPS.
+- The system proposes 2–3 options; anh Ngoc confirms an assignment or explicitly overrides it. It never auto-swaps tours.
+- Client and map are projections, never sources of truth. A future database must prevent active assignment overlap.
 
 ## Architecture
 
-- UI components belong in src/components.
-- Domain logic belongs in src/domain.
-- Mock data belongs in src/data.
-- Shared types belong in src/types.
-- Tests belong in tests or next to domain files.
+- Keep business logic outside React components. Domain code must not import React, Next.js, Supabase, or Google Maps.
+- Keep UI in `src/components`, domain logic in `src/domain`, mock data in `src/data`, shared types in `src/types`, and tests in `tests` or next to domain code.
+- Do not add abstractions without a use case. Do not use BaseRepository, BaseService, service locators, DI containers, microservices, complex CQRS, event sourcing, or a global event bus.
+- `TravelTimeProvider` is an allowed explicit adapter boundary.
 
-## Git
+## Scoped delivery and test discipline
 
-- Work on the assigned branch only.
-- Do not edit unrelated files.
-- Summarize changed files after completion.
-- Report failed tests honestly.
+- Follow the requested task scope; do not expand it or edit unrelated files. Do not invent business rules. Do not modify `docs/BUSINESS_RULES.md` unless explicitly requested.
+- Never delete, skip, weaken, focus (`test.only`), or hide tests; do not raise timeouts arbitrarily. Keep tests deterministic.
+- Do not suppress problems with `eslint-disable`, `@ts-ignore`, or `any`; preserve TypeScript strictness.
+- Do not add Google Maps, Supabase, external APIs, or dependencies unless the task explicitly authorizes them.
+- For scheduling logic, add behavior-focused tests. Run `npm run lint`, `npm run typecheck`, `npm run test`, and `npm run build` before completion.
+- Do not commit or push unless explicitly authorized. Report changed files, validation results, test count, and failures honestly.
+
+## Ambiguity and nested instructions
+
+- Stop and request clarification when requirements conflict or necessary business information is missing.
+- A future nested `AGENTS.md` may narrow these rules for its directory, but may not weaken this root contract.
