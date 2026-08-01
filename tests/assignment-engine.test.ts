@@ -458,6 +458,26 @@ describe("suggestAssignments scoring and ranking", () => {
 });
 
 describe("suggestAssignments determinism and travel origin", () => {
+  it("preserves the capped, deterministic suggestion contract", () => {
+    const employees = [
+      employee({ id: "employee-c" }),
+      employee({ id: "employee-a" }),
+      employee({ id: "employee-b" }),
+      employee({ id: "employee-d" }),
+    ];
+
+    const first = run({ employees });
+    const second = run({ employees: [...employees].reverse() });
+
+    expect(first).toHaveLength(3);
+    expect(first.map(({ employeeId }) => employeeId)).toEqual([
+      "employee-a",
+      "employee-b",
+      "employee-c",
+    ]);
+    expect(second).toEqual(first);
+  });
+
   it("does not mutate its inputs", () => {
     const input = {
       order: order({ serviceIds: ["standard"] }),

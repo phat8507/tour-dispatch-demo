@@ -103,6 +103,24 @@ describe("order-flow service duration", () => {
 });
 
 describe("order-flow immutable state", () => {
+  it("does not mutate the dispatch state passed to confirmation", () => {
+    const { state, result } = getSuggestion();
+    const stateBefore = structuredClone(state);
+    const confirmation = confirmOrderAssignment({
+      confirmed: true,
+      order: result.order,
+      selectedEmployeeId: result.suggestions[0].employeeId,
+      state,
+      employees: mockEmployees,
+      services: mockServices,
+      locations: mockLocations,
+      currentTime: DEMO_TIME,
+    });
+
+    expect(confirmation.ok).toBe(true);
+    expect(state).toEqual(stateBefore);
+  });
+
   it("does not mutate seeded mock data when confirming", () => {
     const seededOrdersBefore = structuredClone(mockOrders);
     const seededAssignmentsBefore = structuredClone(mockAssignments);
