@@ -1,4 +1,6 @@
 import { suggestAssignments } from "./assignment-engine";
+import { addMinutesPreservingOffset } from "./dispatch/time";
+import { getConfirmationPreconditionError } from "./dispatch/confirmation-policy";
 import {
   Assignment,
   AssignmentSuggestion,
@@ -296,49 +298,22 @@ export function suggestOrderAssignments(
   };
 }
 
-export function addMinutesPreservingOffset(
-  timestamp: string,
-  minutes: number,
-): string {
-  const targetMs = new Date(timestamp).getTime() + minutes * 60_000;
-  if (timestamp.endsWith("Z")) {
-    return new Date(targetMs).toISOString();
-  }
-
-  const offsetMatch = timestamp.match(/([+-])(\d{2}):(\d{2})$/);
-  if (!offsetMatch) {
-    return new Date(targetMs).toISOString();
-  }
-
-  const direction = offsetMatch[1] === "+" ? 1 : -1;
-  const offsetMinutes =
-    direction * (Number(offsetMatch[2]) * 60 + Number(offsetMatch[3]));
-  const localIso = new Date(targetMs + offsetMinutes * 60_000).toISOString();
-  return `${localIso.slice(0, 19)}${offsetMatch[0]}`;
-}
+export { addMinutesPreservingOffset } from "./dispatch/time";
 
 export function confirmOrderAssignment(
   input: ConfirmOrderInput,
 ): ConfirmOrderResult {
-  if (!input.confirmed) {
+  const preconditionError = getConfirmationPreconditionError({
+    confirmed: input.confirmed,
+    selectedEmployeeId: input.selectedEmployeeId,
+    orderId: input.order.id,
+    existingOrderIds: input.state.orders.map((order) => order.id),
+  });
+  if (preconditionError || input.selectedEmployeeId === null) {
     return {
       ok: false,
       state: input.state,
-      error: "CONFIRMATION_REQUIRED",
-    };
-  }
-  if (!input.selectedEmployeeId) {
-    return {
-      ok: false,
-      state: input.state,
-      error: "EMPLOYEE_REQUIRED",
-    };
-  }
-  if (input.state.orders.some((order) => order.id === input.order.id)) {
-    return {
-      ok: false,
-      state: input.state,
-      error: "STALE_SUGGESTION",
+      error: preconditionError ?? "EMPLOYEE_REQUIRED",
     };
   }
 
