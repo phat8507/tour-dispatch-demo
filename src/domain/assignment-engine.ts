@@ -13,7 +13,7 @@ import {
   isWithinWorkingHours,
   parseTimestamp,
 } from "./availability";
-import { mockTravelTimeProvider } from "./travel-time";
+import { TravelTimeProvider } from "./travel-time";
 import {
   buildCandidateContext,
   findLocation,
@@ -35,6 +35,7 @@ export interface SuggestAssignmentsInput {
   services: Service[];
   locations: Location[];
   currentTime: string;
+  travelTimeProvider: TravelTimeProvider;
 }
 
 
@@ -176,7 +177,7 @@ export function suggestAssignments(
       continue;
     }
 
-    const travel = mockTravelTimeProvider.estimate(
+    const travel = input.travelTimeProvider.estimate(
       context.origin,
       destination,
     );

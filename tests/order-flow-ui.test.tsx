@@ -27,10 +27,13 @@ import {
   suggestOrderAssignments,
 } from "../src/domain/order-flow";
 import { getDashboardSummary } from "../src/domain/demo-status";
+import { createDemoTravelTimeProvider } from "../src/data/demo-dispatch-composition";
 
 afterEach(() => {
   cleanup();
 });
+
+const travelTimeProvider = createDemoTravelTimeProvider();
 
 function openCreateOrder() {
   fireEvent.click(
@@ -269,6 +272,7 @@ describe("create-order workflow UI", () => {
       services: mockServices,
       locations: mockLocations,
       currentTime: DEMO_TIME,
+      travelTimeProvider,
     });
     expect(suggestions.ok).toBe(true);
     if (!suggestions.ok || suggestions.suggestions.length === 0) {
@@ -283,6 +287,7 @@ describe("create-order workflow UI", () => {
       services: mockServices,
       locations: mockLocations,
       currentTime: DEMO_TIME,
+      travelTimeProvider,
     });
     expect(confirmed.ok).toBe(true);
     if (!confirmed.ok) {

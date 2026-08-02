@@ -28,10 +28,12 @@ import { Assignment, AssignmentSuggestion } from "@/types";
 import { MapTab } from "@/components/map/MapTab";
 import { ListTab } from "@/components/map/ListTab";
 import { useDispatchDashboard } from "@/hooks/useDispatchDashboard";
+import { createDemoTravelTimeProvider } from "@/data/demo-dispatch-composition";
 
 type TabState = "MAP" | "LIST" | "TIMELINE";
 
 export default function DashboardPage() {
+  const travelTimeProvider = createDemoTravelTimeProvider();
   const { timeMode, setTimeMode, currentTime, runtimeOverrides, setRuntimeOverrides } = useDispatchDashboard();
   
   const [dispatchState, setDispatchState] = useState(() =>
@@ -101,6 +103,7 @@ export default function DashboardPage() {
       services: mockServices,
       locations: mockLocations,
       currentTime: currentTime,
+      travelTimeProvider,
     });
 
     if (!result.ok) {
@@ -167,6 +170,7 @@ export default function DashboardPage() {
           services={mockServices}
           locations={mockLocations}
           currentTime={currentTime}
+          travelTimeProvider={travelTimeProvider}
           onSuggest={handleSuggest}
           onConfirm={handleOrderConfirmation}
         />
