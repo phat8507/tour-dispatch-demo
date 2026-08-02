@@ -21,6 +21,7 @@ import {
   OrderDraftErrors,
   suggestOrderAssignments,
 } from "@/domain/order-flow";
+import { TravelTimeProvider } from "@/domain/travel-time";
 import { CreateOrderButton } from "./CreateOrderButton";
 import { CreateOrderForm } from "./CreateOrderForm";
 import { AssignmentSuggestions } from "./AssignmentSuggestions";
@@ -47,6 +48,7 @@ interface OrderFlowDialogProps {
   services: Service[];
   locations: Location[];
   currentTime: string;
+  travelTimeProvider: TravelTimeProvider;
   onSuggest?: (draft: OrderDraft, suggestions: AssignmentSuggestion[] | null) => void;
   onConfirm: (request: OrderConfirmationRequest) => {
     ok: boolean;
@@ -60,6 +62,7 @@ export function OrderFlowDialog({
   services,
   locations,
   currentTime,
+  travelTimeProvider,
   onSuggest,
   onConfirm,
 }: OrderFlowDialogProps) {
@@ -148,6 +151,7 @@ export function OrderFlowDialog({
         services,
         locations,
         currentTime,
+        travelTimeProvider,
       });
 
       if (!result.ok) {

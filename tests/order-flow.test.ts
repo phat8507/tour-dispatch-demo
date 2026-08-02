@@ -18,6 +18,7 @@ import {
   mockServices,
 } from "../src/data/mockData";
 import { Assignment, Order } from "../src/types";
+import { createDemoTravelTimeProvider } from "../src/data/demo-dispatch-composition";
 
 const feasibleDraft: OrderDraft = {
   customerName: "Khách demo",
@@ -29,6 +30,8 @@ const feasibleDraft: OrderDraft = {
   notes: "Gọi trước",
 };
 
+const travelTimeProvider = createDemoTravelTimeProvider();
+
 function getSuggestion() {
   const state = createDispatchState(mockOrders, mockAssignments);
   const result = suggestOrderAssignments({
@@ -38,6 +41,7 @@ function getSuggestion() {
     services: mockServices,
     locations: mockLocations,
     currentTime: DEMO_TIME,
+    travelTimeProvider,
   });
   expect(result.ok).toBe(true);
   if (!result.ok) {
@@ -69,6 +73,7 @@ describe("order-flow deterministic IDs", () => {
       services: mockServices,
       locations: mockLocations,
       currentTime: DEMO_TIME,
+      travelTimeProvider,
     });
     expect(first.ok).toBe(true);
     if (!first.ok) {
@@ -115,6 +120,7 @@ describe("order-flow immutable state", () => {
       services: mockServices,
       locations: mockLocations,
       currentTime: DEMO_TIME,
+      travelTimeProvider,
     });
 
     expect(confirmation.ok).toBe(true);
@@ -135,6 +141,7 @@ describe("order-flow immutable state", () => {
       services: mockServices,
       locations: mockLocations,
       currentTime: DEMO_TIME,
+      travelTimeProvider,
     });
 
     expect(mockOrders).toEqual(seededOrdersBefore);
@@ -163,6 +170,7 @@ describe("order-flow immutable state", () => {
       services: mockServices,
       locations: mockLocations,
       currentTime: DEMO_TIME,
+      travelTimeProvider,
     });
 
     expect(confirmation).toEqual({
@@ -187,6 +195,7 @@ describe("order-flow confirmation revalidation", () => {
       services: mockServices,
       locations: mockLocations,
       currentTime: DEMO_TIME,
+      travelTimeProvider,
     });
     expect(firstConfirmation.ok).toBe(true);
     if (!firstConfirmation.ok) {
@@ -202,6 +211,7 @@ describe("order-flow confirmation revalidation", () => {
       services: mockServices,
       locations: mockLocations,
       currentTime: DEMO_TIME,
+      travelTimeProvider,
     });
 
     expect(repeatedConfirmation).toEqual({
@@ -241,6 +251,7 @@ describe("order-flow confirmation revalidation", () => {
       services: mockServices,
       locations: mockLocations,
       currentTime: DEMO_TIME,
+      travelTimeProvider,
     });
 
     expect(confirmation.ok).toBe(false);
@@ -263,6 +274,7 @@ describe("order-flow confirmation revalidation", () => {
       services: mockServices,
       locations: mockLocations,
       currentTime: DEMO_TIME,
+      travelTimeProvider,
     });
 
     expect(result.ok).toBe(true);
@@ -285,6 +297,7 @@ describe("order-flow confirmation revalidation", () => {
       services: mockServices,
       locations: mockLocations,
       currentTime: DEMO_TIME,
+      travelTimeProvider,
     });
 
     expect(confirmation.ok).toBe(true);
@@ -317,6 +330,7 @@ describe("order-flow confirmation revalidation", () => {
       services: mockServices,
       locations: mockLocations,
       currentTime: DEMO_TIME,
+      travelTimeProvider,
     });
     expect(result.ok).toBe(true);
     if (!result.ok || result.suggestions.length === 0) {
@@ -332,6 +346,7 @@ describe("order-flow confirmation revalidation", () => {
       services: mockServices,
       locations: mockLocations,
       currentTime: DEMO_TIME,
+      travelTimeProvider,
     });
     expect(confirmation.ok).toBe(true);
     if (!confirmation.ok) {
@@ -359,6 +374,7 @@ describe("order-flow validation", () => {
       services: mockServices,
       locations: mockLocations,
       currentTime: DEMO_TIME,
+      travelTimeProvider,
     });
 
     expect(result.ok).toBe(false);
@@ -386,6 +402,7 @@ describe("order-flow validation", () => {
       services: mockServices,
       locations: mockLocations,
       currentTime: DEMO_TIME,
+      travelTimeProvider,
     });
 
     expect(result.ok).toBe(false);

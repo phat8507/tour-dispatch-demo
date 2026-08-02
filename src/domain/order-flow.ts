@@ -1,6 +1,7 @@
 import { suggestAssignments } from "./assignment-engine";
 import { addMinutesPreservingOffset } from "./dispatch/time";
 import { getConfirmationPreconditionError } from "./dispatch/confirmation-policy";
+import { TravelTimeProvider } from "./travel-time";
 import {
   Assignment,
   AssignmentSuggestion,
@@ -44,6 +45,7 @@ export interface SuggestOrderInput {
   services: Service[];
   locations: Location[];
   currentTime: string;
+  travelTimeProvider: TravelTimeProvider;
 }
 
 export type SuggestOrderResult =
@@ -66,6 +68,7 @@ export interface ConfirmOrderInput {
   services: Service[];
   locations: Location[];
   currentTime: string;
+  travelTimeProvider: TravelTimeProvider;
 }
 
 export type ConfirmOrderError =
@@ -294,6 +297,7 @@ export function suggestOrderAssignments(
       services: input.services,
       locations: input.locations,
       currentTime: input.currentTime,
+      travelTimeProvider: input.travelTimeProvider,
     }),
   };
 }
@@ -325,6 +329,7 @@ export function confirmOrderAssignment(
     services: input.services,
     locations: input.locations,
     currentTime: input.currentTime,
+    travelTimeProvider: input.travelTimeProvider,
   });
   const selectedSuggestion = freshSuggestions.find(
     (suggestion) => suggestion.employeeId === input.selectedEmployeeId,

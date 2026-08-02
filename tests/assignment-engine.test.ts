@@ -3,8 +3,9 @@ import { suggestAssignments } from "../src/domain/assignment-engine";
 import { hasConfirmedOverlap } from "../src/domain/availability";
 import {
   calculateHaversineDistanceKm,
-  DeterministicTravelTimeProvider,
+  TravelTimeProvider,
 } from "../src/domain/travel-time";
+import { DeterministicTravelTimeProvider } from "../src/data/demo-dispatch-composition";
 import {
   Assignment,
   Employee,
@@ -101,6 +102,7 @@ interface EngineOverrides {
   services?: Service[];
   locations?: Location[];
   currentTime?: string;
+  travelTimeProvider?: TravelTimeProvider;
 }
 
 function run(overrides: EngineOverrides = {}) {
@@ -112,8 +114,35 @@ function run(overrides: EngineOverrides = {}) {
     services: overrides.services ?? services,
     locations: overrides.locations ?? [home, customer],
     currentTime: overrides.currentTime ?? CURRENT_TIME,
+    travelTimeProvider:
+      overrides.travelTimeProvider ?? new DeterministicTravelTimeProvider(),
   });
 }
+
+describe("travel-time provider contract", () => {
+  it("uses the explicitly injected estimate", () => {
+    const travelTimeProvider: TravelTimeProvider = {
+      estimate: vi.fn(() => ({ distanceKm: 12, travelMinutes: 47 })),
+    };
+
+    const [suggestion] = run({ travelTimeProvider });
+
+    expect(travelTimeProvider.estimate).toHaveBeenCalledWith(home, customer);
+    expect(suggestion.estimatedTravelMinutes).toBe(47);
+  });
+
+  it("propagates provider errors without a fallback", () => {
+    const travelTimeProvider: TravelTimeProvider = {
+      estimate: () => {
+        throw new Error("Travel-time provider unavailable");
+      },
+    };
+
+    expect(() => run({ travelTimeProvider })).toThrow(
+      "Travel-time provider unavailable",
+    );
+  });
+});
 
 describe("suggestAssignments eligibility", () => {
   it("excludes an employee who is off", () => {
@@ -487,6 +516,7 @@ describe("suggestAssignments determinism and travel origin", () => {
       services,
       locations: [home, customer],
       currentTime: CURRENT_TIME,
+      travelTimeProvider: new DeterministicTravelTimeProvider(),
     };
     const before = structuredClone(input);
 
@@ -789,6 +819,16 @@ describe("adversarial travel and arrival calculations", () => {
 
     expect(provider.estimate(home, home).travelMinutes).toBe(5);
     expect(provider.estimate(home, shortTrip).travelMinutes).toBe(6);
+  });
+
+  it("does not mutate locations passed to the deterministic provider", () => {
+    const origin = structuredClone(home);
+    const destination = structuredClone(customer);
+    const before = structuredClone({ origin, destination });
+
+    provider.estimate(origin, destination);
+
+    expect({ origin, destination }).toEqual(before);
   });
 
   it("handles invalid coordinates without throwing or suggesting an employee", () => {
