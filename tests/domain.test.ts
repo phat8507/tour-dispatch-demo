@@ -285,6 +285,7 @@ describe("getDashboardSummary", () => {
 describe("Domain identifiers remain English", () => {
   it("AssignmentStatus values are English", () => {
     const statuses = Object.keys(ASSIGNMENT_STATUS_LABEL);
+    expect(statuses).toEqual(["SCHEDULED", "IN_PROGRESS", "COMPLETED", "DELAYED", "CANCELLED"]);
     statuses.forEach((s) => {
       expect(s).toMatch(/^[A-Z_]+$/);
     });

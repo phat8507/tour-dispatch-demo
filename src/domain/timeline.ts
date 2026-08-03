@@ -55,6 +55,7 @@ export const ASSIGNMENT_STATUS_LABEL: Record<AssignmentStatus, string> = {
   IN_PROGRESS: "Đang làm",
   COMPLETED: "Hoàn thành",
   DELAYED: "Cảnh báo trễ",
+  CANCELLED: "Đã hủy",
 };
 
 export const PERFORMANCE_LEVEL_LABEL: Record<PerformanceLevel, string> = {

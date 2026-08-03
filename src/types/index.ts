@@ -3,7 +3,7 @@ export type BranchId = "CS1" | "CS2";
 export type OrderType = "NEW_TOUR" | "REFILL" | "MILEAGE";
 export type Urgency = "PREBOOKED" | "IMMEDIATE";
 export type OrderStatus = "PENDING" | "ASSIGNED" | "COMPLETED" | "CANCELLED";
-export type AssignmentStatus = "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "DELAYED";
+export type AssignmentStatus = "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "DELAYED" | "CANCELLED";
 export type AssignmentRiskType = "LATE_ARRIVAL" | "OVERLAP" | "INSUFFICIENT_BUFFER";
 
 export interface Branch {

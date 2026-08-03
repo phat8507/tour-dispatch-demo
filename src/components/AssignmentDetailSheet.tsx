@@ -33,6 +33,7 @@ const statusColors: Record<Assignment["status"], string> = {
   IN_PROGRESS: "bg-emerald-100 text-emerald-700",
   COMPLETED: "bg-gray-100 text-gray-600",
   DELAYED: "bg-red-100 text-red-700",
+  CANCELLED: "bg-slate-100 text-slate-600",
 };
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {

@@ -21,6 +21,7 @@ const ASSIGNMENT_STATUS_COLORS: Record<Assignment["status"], string> = {
   IN_PROGRESS: "bg-emerald-200 border-emerald-400 text-emerald-900",
   COMPLETED: "bg-gray-200 border-gray-400 text-gray-700",
   DELAYED: "bg-red-200 border-red-500 text-red-900",
+  CANCELLED: "bg-slate-200 border-slate-400 text-slate-700",
 };
 
 const HOUR_LABELS = Array.from(
