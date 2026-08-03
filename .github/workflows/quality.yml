@@ -35,7 +35,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: |
-          psql -v ON_ERROR_STOP=1 -U postgres -d tour_dispatch_test -c "CREATE ROLE tour_dispatch_test LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD 'ci_only_runtime_password';"
+          psql -h localhost -v ON_ERROR_STOP=1 -U postgres -d tour_dispatch_test -c "CREATE ROLE tour_dispatch_test LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD 'ci_only_runtime_password';"
         env:
           PGPASSWORD: ci_only_postgres_password
       - run: npm run db:migrate:test
