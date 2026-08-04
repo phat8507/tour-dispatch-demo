@@ -1,11 +1,34 @@
 import type { Pool } from "pg";
 import type { DailyOffEmployee, OwnerDispatchBranch, OwnerDispatchTour } from "@/features/dispatch/owner-dispatch-view-model";
+import { recommendProductionCandidates } from "@/domain/production-candidate-recommendations";
+import type { CandidateRecommendation, ProductionRecommendationAssignment, ProductionRecommendationEmployee } from "@/domain/production-candidate-recommendations";
 
 export type { DailyOffEmployee, OwnerDispatchBranch, OwnerDispatchTour } from "@/features/dispatch/owner-dispatch-view-model";
 export type ActiveEmployeeCandidate = { id: string; name: string; homeBranchId: "CS1" | "CS2"; closingLevel: "STRONG" | "NORMAL" | "WEAK"; isActive: boolean; skills: Array<{ serviceId: string; serviceName: string; technicalLevel: "STRONG" | "NORMAL" | "WEAK" }> };
 export type EligibilityCause = "ORDER_NOT_FOUND" | "ORDER_NOT_ASSIGNABLE" | "EMPLOYEE_NOT_FOUND" | "EMPLOYEE_INACTIVE" | "EMPLOYEE_MISSING_REQUIRED_SKILL" | "EMPLOYEE_OFF" | "ELIGIBLE";
 export type DailyOffProjection = { employees: DailyOffEmployee[]; offCount: number; maxOff: 2 };
+export type OwnerTourRecommendations = { orderId: string; recommendations: CandidateRecommendation[] };
 export class OwnerDispatchReadError extends Error { constructor(cause?: unknown) { super("OWNER_DISPATCH_READ_FAILURE", { cause }); this.name = "OwnerDispatchReadError"; } }
+
+type RecommendationRow = {
+  orderId: string; id: string; name: string; isActive: boolean; isOff: boolean;
+  homeBranchId: "CS1" | "CS2"; closingLevel: "STRONG" | "NORMAL" | "WEAK";
+  homeBranchCoordinatesAvailable: boolean;
+  skills: ProductionRecommendationEmployee["skills"];
+  assignments: ProductionRecommendationAssignment[];
+};
+
+function recommendationEmployee(row: RecommendationRow): ProductionRecommendationEmployee {
+  return { id: row.id, name: row.name, isActive: row.isActive, isOff: row.isOff, homeBranchId: row.homeBranchId, closingLevel: row.closingLevel, homeBranchCoordinatesAvailable: row.homeBranchCoordinatesAvailable, skills: row.skills, assignments: row.assignments };
+}
+
+function coordinatesAvailable(latitude: number, longitude: number): boolean {
+  return Number.isFinite(latitude) && Number.isFinite(longitude) && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
+}
+
+function productionTourStatus(status: string): "PENDING" | "ASSIGNED" | "COMPLETED" | "CANCELLED" | undefined {
+  return status === "PENDING" || status === "ASSIGNED" || status === "COMPLETED" || status === "CANCELLED" ? status : undefined;
+}
 
 export class PostgresOwnerDispatchReadModel {
   constructor(private readonly pool: Pool) {}
@@ -55,6 +78,39 @@ export class PostgresOwnerDispatchReadModel {
       return byOrder;
     } catch (error) { throw new OwnerDispatchReadError(error); }
   }
+  async listCandidateRecommendationsForTours(tours: OwnerDispatchTour[], now: Date = new Date()): Promise<OwnerTourRecommendations[]> {
+    if (tours.length === 0) return [];
+    try {
+      const result = await this.pool.query<RecommendationRow>(`select o.id as "orderId", e.id, e.name, e.is_active as "isActive",
+        exists (select 1 from public.employee_daily_off daily_off where daily_off.employee_id = e.id and daily_off.off_date = (o.requested_at at time zone 'Asia/Ho_Chi_Minh')::date) as "isOff",
+        e.home_branch_id as "homeBranchId", e.closing_level as "closingLevel",
+        exists (select 1 from public.locations branch where branch.location_type = 'BRANCH' and branch.branch_id = e.home_branch_id and branch.latitude is not null and branch.longitude is not null) as "homeBranchCoordinatesAvailable",
+        coalesce((select json_agg(json_build_object('serviceId', service.id, 'serviceName', service.name, 'technicalLevel', skill.technical_level) order by service.id)
+          from public.employee_service_skills skill join public.services service on service.id = skill.service_id where skill.employee_id = e.id), '[]'::json) as skills,
+        coalesce((select json_agg(json_build_object('orderId', assignment.order_id, 'startsAt', assignment.starts_at::text, 'endsAt', assignment.ends_at::text, 'status', assignment.status,
+          'locationCoordinatesAvailable', assignment_location.latitude is not null and assignment_location.longitude is not null) order by assignment.starts_at, assignment.id)
+          from public.assignments assignment join public.orders assignment_order on assignment_order.id = assignment.order_id
+          join public.locations assignment_location on assignment_location.id = assignment_order.location_id
+          where assignment.employee_id = e.id and (
+            (assignment.ends_at > $2::timestamptz - interval '1 day' and assignment.starts_at < $2::timestamptz + interval '1 day')
+            or tstzrange(assignment.starts_at, assignment.ends_at, '[)') && tstzrange(
+              (o.requested_at at time zone 'Asia/Ho_Chi_Minh')::date::timestamp at time zone 'Asia/Ho_Chi_Minh',
+              ((o.requested_at at time zone 'Asia/Ho_Chi_Minh')::date + 1)::timestamp at time zone 'Asia/Ho_Chi_Minh', '[)')
+          )), '[]'::json) as assignments
+        from public.orders o cross join public.employees e
+        where o.id = any($1::uuid[])
+        order by o.id, e.id`, [tours.map((tour) => tour.id), now]);
+      const employeesByOrder = new Map<string, ProductionRecommendationEmployee[]>(tours.map((tour) => [tour.id, []]));
+      for (const row of result.rows) employeesByOrder.get(row.orderId)?.push(recommendationEmployee(row));
+      return tours.map((tour) => {
+        const status = productionTourStatus(tour.status);
+        return { orderId: tour.id, recommendations: status ? recommendProductionCandidates({
+          tour: { id: tour.id, requestedAt: tour.requestedAt, status, destinationCoordinatesAvailable: coordinatesAvailable(tour.location.latitude, tour.location.longitude), services: tour.services },
+          employees: employeesByOrder.get(tour.id) ?? [], now: now.toISOString(),
+        }) : [] };
+      });
+    } catch (error) { throw new OwnerDispatchReadError(error); }
+  }
   async listDailyOffEmployees(offDate: string): Promise<DailyOffProjection> {
     try {
       const result = await this.pool.query<DailyOffEmployee>(`select e.id, e.name, e.is_active as "isActive", (daily_off.employee_id is not null) as "isOff"
@@ -64,12 +120,15 @@ export class PostgresOwnerDispatchReadModel {
       return { employees: result.rows, offCount: result.rows.filter((employee) => employee.isOff).length, maxOff: 2 };
     } catch (error) { throw new OwnerDispatchReadError(error); }
   }
-  async evaluateEligibility(orderId: string, employeeId: string): Promise<EligibilityCause> {
+  async evaluateEligibility(orderId: string, employeeId: string, options: { allowUnknownSkill?: boolean } = {}): Promise<EligibilityCause> {
     const tour = await this.loadOwnerDispatchTour(orderId); if (!tour) return "ORDER_NOT_FOUND";
     if (tour.status === "COMPLETED" || tour.status === "CANCELLED") return "ORDER_NOT_ASSIGNABLE";
     const employees = await this.listActiveEmployeeCandidatesForOrder(orderId);
     const activeEmployee = employees.find((employee) => employee.id === employeeId);
-    if (activeEmployee) return tour.services.every((service) => activeEmployee.skills.some((skill) => skill.serviceId === service.id)) ? "ELIGIBLE" : "EMPLOYEE_MISSING_REQUIRED_SKILL";
+    if (activeEmployee) {
+      const completeSkills = tour.services.every((service) => activeEmployee.skills.some((skill) => skill.serviceId === service.id));
+      return completeSkills || options.allowUnknownSkill ? "ELIGIBLE" : "EMPLOYEE_MISSING_REQUIRED_SKILL";
+    }
     const employee = await this.pool.query<{ is_active: boolean; is_off: boolean }>(`select e.is_active,
       exists (select 1 from public.employee_daily_off daily_off join public.orders o on o.id = $2 where daily_off.employee_id = e.id and daily_off.off_date = (o.requested_at at time zone 'Asia/Ho_Chi_Minh')::date) as is_off
       from public.employees e where e.id = $1`, [employeeId, orderId]);

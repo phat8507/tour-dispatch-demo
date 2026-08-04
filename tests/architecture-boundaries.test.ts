@@ -23,4 +23,12 @@ describe("production architecture boundaries", () => {
     expect(panel).not.toContain("suggestAssignments");
     expect(panel).not.toContain("scoreCandidate");
   });
+  it("keeps production recommendation domain free of React, PostgreSQL, demo travel, and mutation authority", async () => {
+    const source = await readFile(join(process.cwd(), "src", "domain", "production-candidate-recommendations.ts"), "utf8");
+    expect(source).not.toMatch(/from ["'](?:react|pg|next)/);
+    expect(source).not.toContain("demo-dispatch-composition");
+    expect(source).not.toContain("TravelTimeProvider");
+    expect(source).not.toContain("confirmOwnerDispatch");
+    expect(source).not.toContain("overrideOwnerDispatch");
+  });
 });

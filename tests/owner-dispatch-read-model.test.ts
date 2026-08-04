@@ -33,4 +33,19 @@ describe("PostgreSQL owner dispatch read model", () => {
     expect(query.mock.calls[0][0]).toContain("employee_daily_off");
     expect(query.mock.calls[0][0]).toContain("Asia/Ho_Chi_Minh");
   });
+  it("bulk-loads production recommendation inputs in one query regardless of tour count", async () => {
+    const rows = [{ orderId: tour.id, id: candidate.id, name: candidate.name, isActive: true, isOff: false, homeBranchId: "CS1", closingLevel: "NORMAL", homeBranchCoordinatesAvailable: true, skills: candidate.skills, assignments: [] }];
+    const query = vi.fn().mockResolvedValue({ rows });
+    const result = await modelWithQuery(query).listCandidateRecommendationsForTours([tour], new Date("2029-12-31T08:00:00Z"));
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(query.mock.calls[0][0]).toContain("employee_service_skills");
+    expect(query.mock.calls[0][0]).toContain("employee_daily_off");
+    expect(query.mock.calls[0][0]).toContain("public.assignments");
+    expect(result[0].recommendations[0]).toMatchObject({ employeeId: candidate.id, category: "PRIMARY", requiresOverride: false });
+  });
+
+  it("does not turn recommendation query failures into an empty projection", async () => {
+    const query = vi.fn().mockRejectedValue(new Error("raw SQL secret"));
+    await expect(modelWithQuery(query).listCandidateRecommendationsForTours([tour])).rejects.toBeInstanceOf(OwnerDispatchReadError);
+  });
 });
