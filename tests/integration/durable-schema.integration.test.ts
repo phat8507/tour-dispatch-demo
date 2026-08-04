@@ -40,7 +40,27 @@ afterAll(async () => { await runtimePool.end(); await admin.end(); });
 describe("durable dispatch schema", () => {
   it("has all migrations recorded and is safe to run repeatedly", async () => {
     const result = await admin.query<{ filename: string }>("select filename from dispatch_schema_migrations order by filename");
-    expect(result.rows.map((row) => row.filename)).toEqual(["001_durable_dispatch_schema.sql", "002_assignment_invariant_functions.sql", "003_dispatch_runtime_privileges.sql", "004_dispatch_schema_ownership.sql", "005_harden_named_dispatch_functions.sql"]);
+    expect(result.rows.map((row) => row.filename)).toEqual(["001_durable_dispatch_schema.sql", "002_assignment_invariant_functions.sql", "003_dispatch_runtime_privileges.sql", "004_dispatch_schema_ownership.sql", "005_harden_named_dispatch_functions.sql", "006_atomic_versioned_dispatch_commands.sql"]);
+  });
+
+  it("provides atomic versioned confirm and override commands without granting runtime DML", async () => {
+    const version = (await admin.query<{ order_version: string }>("select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') as order_version from public.orders where id = $1", [orderOneId])).rows[0].order_version;
+    const confirmed = await runtimePool.query("select * from public.confirm_assignment_with_version($1, $2, $3, $4, $5, $6)", [id("101"), orderOneId, employeeOneId, startsAt, endsAt, version]);
+    expect(confirmed.rows[0]).toMatchObject({ id: id("101"), is_override: false });
+    expect(confirmed.rows[0].order_version).not.toBe(version);
+    await expect(runtimePool.query("select * from public.confirm_assignment_with_version($1, $2, $3, $4, $5, $6)", [id("102"), orderOneId, employeeTwoId, startsAt, endsAt, version])).rejects.toMatchObject({ code: "PDA09" });
+    expect((await gateway.loadOrderAssignments(orderOneId)).map((assignment) => assignment.id)).toEqual([id("101")]);
+
+    const overrideOrderVersion = (await admin.query<{ order_version: string }>("select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') as order_version from public.orders where id = $1", [orderTwoId])).rows[0].order_version;
+    const overridden = await runtimePool.query("select * from public.override_assignment_with_version($1, $2, $3, $4, $5, $6, $7)", [id("103"), orderTwoId, employeeTwoId, startsAt, endsAt, "Owner decision", overrideOrderVersion]);
+    expect(overridden.rows[0]).toMatchObject({ id: id("103"), is_override: true, override_reason: "Owner decision" });
+    expect(overridden.rows[0].order_version).not.toBe(overrideOrderVersion);
+    await expect(runtimePool.query("select * from public.override_assignment_with_version($1, $2, $3, $4, $5, $6, $7)", [id("104"), orderTwoId, employeeThreeId, startsAt, endsAt, "Stale", overrideOrderVersion])).rejects.toMatchObject({ code: "PDA09" });
+    expect((await gateway.loadOrderAssignments(orderTwoId)).map((assignment) => assignment.id)).toEqual([id("103")]);
+    const security = await admin.query<{ prosecdef: boolean; proconfig: string[]; owner: string; public_execute: boolean }>("select p.prosecdef, p.proconfig, pg_get_userbyid(p.proowner) as owner, has_function_privilege('public', p.oid, 'EXECUTE') as public_execute from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('confirm_assignment_with_version', 'override_assignment_with_version') order by p.proname");
+    expect(security.rows).toHaveLength(2);
+    for (const functionSecurity of security.rows) expect(functionSecurity).toMatchObject({ prosecdef: true, proconfig: ["search_path=pg_catalog, public, pg_temp"], public_execute: false });
+    expect(security.rows.every((functionSecurity) => functionSecurity.owner !== "dispatch_runtime")).toBe(true);
   });
 
   it("creates a normal assignment, reads it, and projects assigned and unassigned tours", async () => {
@@ -130,7 +150,10 @@ describe("durable dispatch schema", () => {
       await expect(runtime.query("insert into public.assignments (id, order_id, employee_id, starts_at, ends_at, status) values ($1, $2, $3, $4, $5, 'SCHEDULED')", [id("30"), orderOneId, employeeOneId, startsAt, endsAt])).rejects.toMatchObject({ code: "42501" });
       await expect(runtime.query("update public.assignments set status = 'CANCELLED'")).rejects.toMatchObject({ code: "42501" });
       await expect(runtime.query("delete from public.assignments")).rejects.toMatchObject({ code: "42501" });
+      await expect(runtime.query("update public.orders set status = 'ASSIGNED'")).rejects.toMatchObject({ code: "42501" });
       await expect(runtime.query("select * from public.confirm_assignment($1, $2, $3, $4, $5)", [id("31"), orderOneId, employeeOneId, startsAt, endsAt])).resolves.toMatchObject({ rows: [{ id: id("31") }] });
+      const version = (await admin.query<{ order_version: string }>("select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') as order_version from public.orders where id = $1", [orderTwoId])).rows[0].order_version;
+      await expect(runtime.query("select * from public.confirm_assignment_with_version($1, $2, $3, $4, $5, $6)", [id("105"), orderTwoId, employeeTwoId, startsAt, endsAt, version])).resolves.toMatchObject({ rows: [{ id: id("105") }] });
     } finally { await runtime.query("reset role").catch(() => undefined); await runtime.end(); }
   });
 });

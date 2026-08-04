@@ -9,6 +9,7 @@ export type DispatchPersistenceErrorCode =
   | "ASSIGNMENT_NOT_FOUND"
   | "ASSIGNMENT_ALREADY_STARTED"
   | "ASSIGNMENT_INVALID_STATE"
+  | "STALE_VERSION"
   | "PERSISTENCE_FAILURE";
 
 export class DispatchPersistenceError extends Error {
@@ -29,6 +30,11 @@ export interface DurableAssignment {
   overrideReason: string | null;
 }
 
+export interface VersionedDurableAssignment {
+  assignment: DurableAssignment;
+  orderVersion: string;
+}
+
 export interface ConfirmAssignmentCommand {
   assignmentId: string;
   orderId: string;
@@ -39,6 +45,14 @@ export interface ConfirmAssignmentCommand {
 
 export interface OverrideAssignmentCommand extends ConfirmAssignmentCommand {
   reason: string;
+}
+
+export interface VersionedConfirmAssignmentCommand extends ConfirmAssignmentCommand {
+  expectedOrderVersion: string;
+}
+
+export interface VersionedOverrideAssignmentCommand extends OverrideAssignmentCommand {
+  expectedOrderVersion: string;
 }
 
 export interface ReplaceOrderAssignmentCommand {
@@ -70,6 +84,8 @@ export interface TourWithAssignedEmployees {
 export interface DispatchAssignmentGateway {
   confirmAssignment(command: ConfirmAssignmentCommand): Promise<DurableAssignment>;
   overrideAssignment(command: OverrideAssignmentCommand): Promise<DurableAssignment>;
+  confirmAssignmentWithVersion(command: VersionedConfirmAssignmentCommand): Promise<VersionedDurableAssignment>;
+  overrideAssignmentWithVersion(command: VersionedOverrideAssignmentCommand): Promise<VersionedDurableAssignment>;
   replaceOrderAssignment(command: ReplaceOrderAssignmentCommand): Promise<DurableAssignment>;
   cancelOrder(orderId: string): Promise<void>;
   loadOrderAssignments(orderId: string): Promise<DurableAssignment[]>;

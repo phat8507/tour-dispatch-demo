@@ -7,6 +7,9 @@ import type {
   OverrideAssignmentCommand,
   ReplaceOrderAssignmentCommand,
   TourWithAssignedEmployees,
+  VersionedConfirmAssignmentCommand,
+  VersionedDurableAssignment,
+  VersionedOverrideAssignmentCommand,
 } from "@/domain/dispatch-assignment-gateway";
 
 interface AssignmentRow {
@@ -19,6 +22,8 @@ interface AssignmentRow {
   is_override: boolean;
   override_reason: string | null;
 }
+
+interface VersionedAssignmentRow extends AssignmentRow { order_version: string; }
 
 function toAssignment(row: AssignmentRow): DurableAssignment {
   return {
@@ -44,6 +49,7 @@ function toPersistenceError(error: unknown): DispatchPersistenceError {
     PDA06: "ASSIGNMENT_NOT_FOUND",
     PDA07: "ASSIGNMENT_ALREADY_STARTED",
     PDA08: "ASSIGNMENT_INVALID_STATE",
+    PDA09: "STALE_VERSION",
   };
   return new DispatchPersistenceError(databaseCode ? (codeByDatabaseCode[databaseCode] ?? "PERSISTENCE_FAILURE") : "PERSISTENCE_FAILURE", error);
 }
@@ -71,6 +77,20 @@ export class PostgresDispatchAssignmentGateway implements DispatchAssignmentGate
     try {
       const result = await this.pool.query<AssignmentRow>("select * from public.override_assignment($1, $2, $3, $4, $5, $6)", [command.assignmentId, command.orderId, command.employeeId, command.startsAt, command.endsAt, command.reason]);
       return toAssignment(result.rows[0]);
+    } catch (error) { throw toPersistenceError(error); }
+  }
+
+  async confirmAssignmentWithVersion(command: VersionedConfirmAssignmentCommand): Promise<VersionedDurableAssignment> {
+    try {
+      const result = await this.pool.query<VersionedAssignmentRow>("select * from public.confirm_assignment_with_version($1, $2, $3, $4, $5, $6)", [command.assignmentId, command.orderId, command.employeeId, command.startsAt, command.endsAt, command.expectedOrderVersion]);
+      return { assignment: toAssignment(result.rows[0]), orderVersion: result.rows[0].order_version };
+    } catch (error) { throw toPersistenceError(error); }
+  }
+
+  async overrideAssignmentWithVersion(command: VersionedOverrideAssignmentCommand): Promise<VersionedDurableAssignment> {
+    try {
+      const result = await this.pool.query<VersionedAssignmentRow>("select * from public.override_assignment_with_version($1, $2, $3, $4, $5, $6, $7)", [command.assignmentId, command.orderId, command.employeeId, command.startsAt, command.endsAt, command.reason, command.expectedOrderVersion]);
+      return { assignment: toAssignment(result.rows[0]), orderVersion: result.rows[0].order_version };
     } catch (error) { throw toPersistenceError(error); }
   }
 
