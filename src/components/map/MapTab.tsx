@@ -1,5 +1,4 @@
-import { Employee, Order, Assignment, Location, Service } from "@/types";
-import { RuntimeOverride } from "@/domain/effective-assignment";
+import { Employee, Order, Assignment, Location } from "@/types";
 import { OperationalMap } from "./OperationalMap";
 import { EmployeeStatusPanel } from "./EmployeeStatusPanel";
 
@@ -8,9 +7,7 @@ export interface MapTabProps {
   assignments: Assignment[];
   orders: Order[];
   locations: Location[];
-  services: Service[];
   currentTime: string;
-  onOverride: (assignmentId: string, override: RuntimeOverride) => void;
   selectedEmployeeId: string | null;
   onSelectEmployee: (id: string | null) => void;
   newCustomerLocationId?: string | null;
@@ -22,9 +19,7 @@ export function MapTab({
   assignments,
   orders,
   locations,
-  services,
   currentTime,
-  onOverride,
   selectedEmployeeId,
   onSelectEmployee,
   newCustomerLocationId,
@@ -51,11 +46,9 @@ export function MapTab({
           assignments={assignments}
           orders={orders}
           locations={locations}
-          services={services}
           currentTime={currentTime}
           selectedEmployeeId={selectedEmployeeId}
           onSelectEmployee={onSelectEmployee}
-          onOverride={onOverride}
         />
       </div>
     </div>

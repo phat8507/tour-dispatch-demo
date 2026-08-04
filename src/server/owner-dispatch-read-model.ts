@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
+import type { OwnerDispatchBranch, OwnerDispatchTour } from "@/features/dispatch/owner-dispatch-view-model";
 
-export type OwnerDispatchTour = { id: string; customerName: string; customerPhone: string | null; requestedAt: string; orderType: string; urgency: string; status: string; notes: string; location: { id: string; name: string; address: string; latitude: number; longitude: number }; services: Array<{ id: string; name: string; durationMinutes: number }>; assignments: Array<{ id: string; employeeId: string; employeeName: string; startsAt: string; endsAt: string; status: string; isOverride: boolean; overrideReason: string | null }>; orderVersion: string };
+export type { OwnerDispatchBranch, OwnerDispatchTour } from "@/features/dispatch/owner-dispatch-view-model";
 export type ActiveEmployeeCandidate = { id: string; name: string; homeBranchId: "CS1" | "CS2"; closingLevel: "STRONG" | "NORMAL" | "WEAK"; isActive: boolean; skills: Array<{ serviceId: string; serviceName: string; technicalLevel: "STRONG" | "NORMAL" | "WEAK" }> };
 export type EligibilityCause = "ORDER_NOT_FOUND" | "ORDER_NOT_ASSIGNABLE" | "EMPLOYEE_NOT_FOUND" | "EMPLOYEE_INACTIVE" | "EMPLOYEE_MISSING_REQUIRED_SKILL" | "ELIGIBLE";
 export class OwnerDispatchReadError extends Error { constructor(cause?: unknown) { super("OWNER_DISPATCH_READ_FAILURE", { cause }); this.name = "OwnerDispatchReadError"; } }
@@ -14,6 +15,15 @@ export class PostgresOwnerDispatchReadModel {
       coalesce((select json_agg(json_build_object('id', a.id, 'employeeId', a.employee_id, 'employeeName', e.name, 'startsAt', a.starts_at::text, 'endsAt', a.ends_at::text, 'status', a.status, 'isOverride', a.is_override, 'overrideReason', a.override_reason) order by a.starts_at, a.id) from public.assignments a join public.employees e on e.id = a.employee_id where a.order_id = o.id), '[]'::json) as assignments,
       to_char(o.updated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as "orderVersion"
       from public.orders o join public.locations l on l.id = o.location_id order by o.requested_at, o.id`);
+      return result.rows;
+    } catch (error) { throw new OwnerDispatchReadError(error); }
+  }
+  async listOwnerDispatchBranches(): Promise<OwnerDispatchBranch[]> {
+    try {
+      const result = await this.pool.query<OwnerDispatchBranch>(`select id, branch_id as "branchId", name, address, latitude, longitude
+        from public.locations
+        where location_type = 'BRANCH' and branch_id in ('CS1', 'CS2')
+        order by branch_id, id`);
       return result.rows;
     } catch (error) { throw new OwnerDispatchReadError(error); }
   }

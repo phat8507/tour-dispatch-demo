@@ -3,7 +3,6 @@ import { getLiveDemoTime } from "../src/domain/realtime-clock";
 import { projectLocationToMap, offsetOverlappingMarker } from "../src/domain/map-projection";
 import { resolveEmployeeMapPosition } from "../src/domain/employee-map-state";
 import { getEmployeeRealtimeStatus } from "../src/domain/realtime-status";
-import { getEffectiveAssignments } from "../src/domain/effective-assignment";
 import { getDashboardSummary } from "../src/domain/demo-status";
 import { mockEmployees, mockLocations, mockAssignments, mockOrders, DEMO_TIME } from "../src/data/mockData";
 
@@ -57,13 +56,6 @@ describe("Map Domain & Realtime Helpers", () => {
     const emp = mockEmployees[0];
     const status = getEmployeeRealtimeStatus(emp, mockAssignments, DEMO_TIME);
     expect(status.status).toBeDefined();
-  });
-
-  it("getEffectiveAssignments applies runtime overrides", () => {
-    const a = mockAssignments[0];
-    const overrides = { [a.id]: { status: "DELAYED" as const } };
-    const effective = getEffectiveAssignments(mockAssignments, overrides);
-    expect(effective.find(x => x.id === a.id)?.status).toBe("DELAYED");
   });
 
   it("summary does not double-count employees", () => {
