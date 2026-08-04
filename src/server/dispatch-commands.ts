@@ -12,7 +12,7 @@ export type DispatchCommandError =
   | "EMPLOYEE_HAS_ACTIVE_ASSIGNMENTS" | "DAILY_OFF_LIMIT_REACHED"
   | "STALE_VERSION" | "ASSIGNMENT_OVERLAP" | "PERSISTENCE_FAILURE";
 
-export interface DispatchEligibility { evaluateEligibility(orderId: string, employeeId: string): Promise<EligibilityCause>; }
+export interface DispatchEligibility { evaluateEligibility(orderId: string, employeeId: string, options?: { allowUnknownSkill?: boolean }): Promise<EligibilityCause>; }
 export interface ConfirmDispatchInput { orderId: string; employeeId: string; startsAt: string; endsAt: string; expectedOrderVersion: string; }
 export interface OverrideDispatchInput extends ConfirmDispatchInput { reason: string; }
 export interface DailyOffCommandInput { employeeId: string; offDate: string; }
@@ -70,7 +70,7 @@ export async function overrideDispatchAssignment(input: OverrideDispatchInput, t
   const auth = authorize(token, dependencies.owner); if (auth) return failure(auth);
   const interval = dates(input); if (!interval || !input.reason.trim()) return failure("INVALID_INPUT");
   if (interval.startsAt >= interval.endsAt) return failure("INVALID_INTERVAL");
-  const eligibility = await dependencies.eligibility.evaluateEligibility(input.orderId, input.employeeId); if (eligibility !== "ELIGIBLE") return failure(eligibility);
+  const eligibility = await dependencies.eligibility.evaluateEligibility(input.orderId, input.employeeId, { allowUnknownSkill: true }); if (eligibility !== "ELIGIBLE") return failure(eligibility);
   try { return { ok: true, result: await dependencies.gateway.overrideAssignmentWithVersion({ assignmentId: randomUUID(), ...input, reason: input.reason.trim(), ...interval }) }; }
   catch (error) { return failure(mapPersistence(error)); }
 }

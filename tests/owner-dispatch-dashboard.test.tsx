@@ -42,7 +42,7 @@ describe("owner dispatch dashboard", () => {
     render(
       <OwnerDispatchDashboard
         tours={tours}
-        candidates={[[], []]}
+        recommendations={[[], []]}
         mapModel={{ tours, tourMarkers: [], branchMarkers: [], warnings: [] }}
       />,
     );
@@ -59,7 +59,7 @@ describe("owner dispatch dashboard", () => {
     render(
       <OwnerDispatchDashboard
         tours={[invalidTour]}
-        candidates={[[]]}
+        recommendations={[[]]}
         mapModel={{ tours: [invalidTour], tourMarkers: [], branchMarkers: [], warnings: ["Khong the hien thi marker cho Khach khong toa do."] }}
       />,
     );
@@ -71,7 +71,7 @@ describe("owner dispatch dashboard", () => {
     render(
       <OwnerDispatchDashboard
         tours={[]}
-        candidates={[]}
+        recommendations={[]}
         mapModel={{ tours: [], tourMarkers: [], branchMarkers: [], warnings: [] }}
       />,
     );
@@ -84,7 +84,7 @@ describe("owner dispatch dashboard", () => {
     const { rerender } = render(
       <OwnerDispatchDashboard
         tours={[initialTour]}
-        candidates={[[]]}
+        recommendations={[[]]}
         mapModel={{ tours: [initialTour], tourMarkers: [], branchMarkers: [], warnings: [] }}
       />,
     );
@@ -97,7 +97,7 @@ describe("owner dispatch dashboard", () => {
     rerender(
       <OwnerDispatchDashboard
         tours={[persistedTour]}
-        candidates={[[]]}
+        recommendations={[[]]}
         mapModel={{ tours: [persistedTour], tourMarkers: [], branchMarkers: [], warnings: [] }}
       />,
     );

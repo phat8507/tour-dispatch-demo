@@ -1,6 +1,7 @@
 import { Client, Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { PostgresDispatchAssignmentGateway } from "@/data/postgres-dispatch-assignment-gateway";
+import { PostgresOwnerDispatchReadModel } from "@/server/owner-dispatch-read-model";
 
 const migrationDatabaseUrl = process.env.MIGRATION_DATABASE_URL;
 const runtimeDatabaseUrl = process.env.DATABASE_URL;
@@ -9,6 +10,7 @@ if (!migrationDatabaseUrl || !runtimeDatabaseUrl) throw new Error("MIGRATION_DAT
 const admin = new Client({ connectionString: migrationDatabaseUrl });
 const runtimePool = new Pool({ connectionString: runtimeDatabaseUrl, max: 4 });
 const gateway = new PostgresDispatchAssignmentGateway(runtimePool);
+const readModel = new PostgresOwnerDispatchReadModel(runtimePool);
 const locationId = "00000000-0000-0000-0000-000000000001";
 const employeeOneId = "00000000-0000-0000-0000-000000000011";
 const employeeTwoId = "00000000-0000-0000-0000-000000000012";
@@ -38,6 +40,20 @@ beforeEach(seed);
 afterAll(async () => { await runtimePool.end(); await admin.end(); });
 
 describe("durable dispatch schema", () => {
+  it("projects primary and UNKNOWN fallback recommendations from one durable bulk load", async () => {
+    const serviceId = id("301");
+    await admin.query("insert into services (id, name, default_duration_minutes, refill_duration_minutes) values ($1, 'Recommendation service', 60, 30)", [serviceId]);
+    await admin.query("insert into order_services (order_id, service_id, duration_minutes) values ($1, $2, 60)", [orderOneId, serviceId]);
+    await admin.query("insert into employee_service_skills (employee_id, service_id, technical_level) values ($1, $2, 'STRONG')", [employeeOneId, serviceId]);
+    const tours = await readModel.listOwnerDispatchTours();
+    const recommendations = await readModel.listCandidateRecommendationsForTours(tours.filter((tour) => tour.id === orderOneId), new Date("2030-01-01T07:00:00Z"));
+    expect(recommendations[0].recommendations[0]).toMatchObject({ employeeId: employeeOneId, category: "PRIMARY", requiresOverride: false });
+    expect(recommendations[0].recommendations[1]).toMatchObject({ category: "UNKNOWN_SKILL_FALLBACK", requiresOverride: true });
+    await expect(readModel.evaluateEligibility(orderOneId, employeeTwoId)).resolves.toBe("EMPLOYEE_MISSING_REQUIRED_SKILL");
+    await expect(readModel.evaluateEligibility(orderOneId, employeeTwoId, { allowUnknownSkill: true })).resolves.toBe("ELIGIBLE");
+    await gateway.markEmployeeOff(employeeTwoId, "2030-01-01");
+    await expect(readModel.evaluateEligibility(orderOneId, employeeTwoId, { allowUnknownSkill: true })).resolves.toBe("EMPLOYEE_OFF");
+  });
   it("has all migrations recorded and is safe to run repeatedly", async () => {
     const result = await admin.query<{ filename: string }>("select filename from dispatch_schema_migrations order by filename");
     expect(result.rows.map((row) => row.filename)).toEqual(["001_durable_dispatch_schema.sql", "002_assignment_invariant_functions.sql", "003_dispatch_runtime_privileges.sql", "004_dispatch_schema_ownership.sql", "005_harden_named_dispatch_functions.sql", "006_atomic_versioned_dispatch_commands.sql", "007_daily_employee_off.sql"]);

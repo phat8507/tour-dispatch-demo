@@ -9,6 +9,7 @@ import type { OwnerDispatchTour } from "@/features/dispatch/owner-dispatch-view-
 import { createDispatchServerDependencies } from "@/server/dispatch-composition";
 import { authenticateSession } from "@/server/owner-auth";
 import type { DailyOffProjection } from "@/server/owner-dispatch-read-model";
+import type { CandidateRecommendation } from "@/domain/production-candidate-recommendations";
 import { businessDateInHoChiMinh, isValidBusinessDate } from "@/domain/business-date";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ export default async function OwnerDispatchPage({ searchParams }: { searchParams
   const offDate = selectedBusinessDate((await searchParams)?.offDate);
   let projection: {
     tours: OwnerDispatchTour[];
-    candidates: Array<Array<{ id: string; name: string }>>;
+    recommendations: CandidateRecommendation[][];
     mapModel: OwnerDispatchMapModel;
     dailyOff: DailyOffProjection;
   };
@@ -38,14 +39,15 @@ export default async function OwnerDispatchPage({ searchParams }: { searchParams
   }
 
   try {
-    const [tours, branches, dailyOff] = await Promise.all([
-      dependencies.readModel.listOwnerDispatchTours(),
+    const tours = await dependencies.readModel.listOwnerDispatchTours();
+    const [branches, dailyOff, recommendationsByOrder] = await Promise.all([
       dependencies.readModel.listOwnerDispatchBranches(),
       dependencies.readModel.listDailyOffEmployees(offDate),
+      dependencies.readModel.listCandidateRecommendationsForTours(tours),
     ]);
-    const candidatesByOrder = await dependencies.readModel.listActiveEmployeeCandidatesForOrders(tours.map((tour) => tour.id));
-    const candidates = tours.map((tour) => (candidatesByOrder.get(tour.id) ?? []).map((employee) => ({ id: employee.id, name: employee.name })));
-    projection = { tours, candidates, mapModel: buildOwnerDispatchMapModel(tours, branches), dailyOff };
+    const recommendationMap = new Map(recommendationsByOrder.map((item) => [item.orderId, item.recommendations]));
+    const recommendations = tours.map((tour) => recommendationMap.get(tour.id) ?? []);
+    projection = { tours, recommendations, mapModel: buildOwnerDispatchMapModel(tours, branches), dailyOff };
   } catch {
     return (
       <main className="mx-auto w-full max-w-5xl p-6">
@@ -68,7 +70,7 @@ export default async function OwnerDispatchPage({ searchParams }: { searchParams
         </form>
       </header>
       <OwnerDailyOffPanel selectedDate={offDate} {...projection.dailyOff} />
-      <OwnerDispatchDashboard tours={projection.tours} candidates={projection.candidates} mapModel={projection.mapModel} />
+      <OwnerDispatchDashboard tours={projection.tours} recommendations={projection.recommendations} mapModel={projection.mapModel} />
     </main>
   );
 }

@@ -5,21 +5,22 @@ import { OwnerDispatchForm } from "@/app/owner/OwnerDispatchForm";
 import type { OwnerDispatchTour } from "./owner-dispatch-view-model";
 import type { OwnerDispatchMapModel } from "./owner-dispatch-map-model";
 import { OwnerDispatchMap } from "./OwnerDispatchMap";
-
-type Candidate = { id: string; name: string };
+import { OwnerCandidateRecommendations } from "./OwnerCandidateRecommendations";
+import type { CandidateRecommendation } from "@/domain/production-candidate-recommendations";
 
 export type OwnerDispatchDashboardProps = {
   tours: OwnerDispatchTour[];
-  candidates: Candidate[][];
+  recommendations: CandidateRecommendation[][];
   mapModel: OwnerDispatchMapModel;
 };
 
 export function OwnerDispatchDashboard({
   tours,
-  candidates,
+  recommendations,
   mapModel,
 }: OwnerDispatchDashboardProps) {
   const [selectedTourId, setSelectedTourId] = useState<string | null>(null);
+  const [selectedEmployees, setSelectedEmployees] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!selectedTourId) return;
@@ -100,11 +101,13 @@ export function OwnerDispatchDashboard({
                             .join(", ")}
                     </span>
                   </button>
+                  <OwnerCandidateRecommendations recommendations={recommendations[index] ?? []} selectedEmployeeId={selectedEmployees[tour.id]} onSelect={(employeeId) => setSelectedEmployees((current) => ({ ...current, [tour.id]: employeeId }))} />
                   <OwnerDispatchForm
                     orderId={tour.id}
                     orderVersion={tour.orderVersion}
                     requestedAt={tour.requestedAt}
-                    candidates={candidates[index] ?? []}
+                    candidates={(recommendations[index] ?? []).map((candidate) => ({ id: candidate.employeeId, name: candidate.employeeName, requiresOverride: candidate.requiresOverride }))}
+                    selectedEmployeeId={selectedEmployees[tour.id]}
                   />
                 </article>
               );
