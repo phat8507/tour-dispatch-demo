@@ -24,7 +24,7 @@ const laterEndsAt = new Date("2030-01-01T10:00:00.000Z");
 function id(suffix: string): string { return `10000000-0000-0000-0000-${suffix.padStart(12, "0")}`; }
 
 async function seed(): Promise<void> {
-  await admin.query("truncate assignments, order_services, orders, employee_service_skills, services, employees, locations cascade");
+  await admin.query("truncate employee_daily_off, assignments, order_services, orders, employee_service_skills, services, employees, locations cascade");
   await admin.query("insert into locations (id, name, address, latitude, longitude, location_type) values ($1, 'Customer', 'Address', 10, 106, 'CUSTOMER')", [locationId]);
   await admin.query("insert into employees (id, name, home_branch_id, closing_level) values ($1, 'One', 'CS1', 'NORMAL'), ($2, 'Two', 'CS2', 'NORMAL'), ($3, 'Three', 'CS1', 'NORMAL'), ($4, 'Four', 'CS2', 'NORMAL')", [employeeOneId, employeeTwoId, employeeThreeId, employeeFourId]);
   await admin.query("insert into orders (id, customer_name, location_id, requested_at, order_type, urgency, status) values ($1, 'First', $5, $6, 'NEW_TOUR', 'PREBOOKED', 'PENDING'), ($2, 'Second', $5, $6, 'NEW_TOUR', 'PREBOOKED', 'PENDING'), ($3, 'Third', $5, $6, 'NEW_TOUR', 'PREBOOKED', 'PENDING'), ($4, 'Fourth', $5, $6, 'NEW_TOUR', 'PREBOOKED', 'PENDING')", [orderOneId, orderTwoId, orderThreeId, orderFourId, locationId, startsAt]);
@@ -40,7 +40,7 @@ afterAll(async () => { await runtimePool.end(); await admin.end(); });
 describe("durable dispatch schema", () => {
   it("has all migrations recorded and is safe to run repeatedly", async () => {
     const result = await admin.query<{ filename: string }>("select filename from dispatch_schema_migrations order by filename");
-    expect(result.rows.map((row) => row.filename)).toEqual(["001_durable_dispatch_schema.sql", "002_assignment_invariant_functions.sql", "003_dispatch_runtime_privileges.sql", "004_dispatch_schema_ownership.sql", "005_harden_named_dispatch_functions.sql", "006_atomic_versioned_dispatch_commands.sql"]);
+    expect(result.rows.map((row) => row.filename)).toEqual(["001_durable_dispatch_schema.sql", "002_assignment_invariant_functions.sql", "003_dispatch_runtime_privileges.sql", "004_dispatch_schema_ownership.sql", "005_harden_named_dispatch_functions.sql", "006_atomic_versioned_dispatch_commands.sql", "007_daily_employee_off.sql"]);
   });
 
   it("provides atomic versioned confirm and override commands without granting runtime DML", async () => {
@@ -155,5 +155,73 @@ describe("durable dispatch schema", () => {
       const version = (await admin.query<{ order_version: string }>("select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') as order_version from public.orders where id = $1", [orderTwoId])).rows[0].order_version;
       await expect(runtime.query("select * from public.confirm_assignment_with_version($1, $2, $3, $4, $5, $6)", [id("105"), orderTwoId, employeeTwoId, startsAt, endsAt, version])).resolves.toMatchObject({ rows: [{ id: id("105") }] });
     } finally { await runtime.query("reset role").catch(() => undefined); await runtime.end(); }
+  });
+
+  it("blocks normal, versioned, override, and versioned override assignments on an OFF business date", async () => {
+    await gateway.markEmployeeOff(employeeOneId, "2030-01-01");
+    await expect(gateway.confirmAssignment({ assignmentId: id("201"), orderId: orderOneId, employeeId: employeeOneId, startsAt, endsAt })).rejects.toMatchObject({ code: "EMPLOYEE_OFF" });
+    await expect(gateway.overrideAssignment({ assignmentId: id("202"), orderId: orderOneId, employeeId: employeeOneId, startsAt, endsAt, reason: "Owner" })).rejects.toMatchObject({ code: "EMPLOYEE_OFF" });
+    const version = (await admin.query<{ order_version: string }>("select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') as order_version from public.orders where id = $1", [orderOneId])).rows[0].order_version;
+    await expect(gateway.confirmAssignmentWithVersion({ assignmentId: id("203"), orderId: orderOneId, employeeId: employeeOneId, startsAt, endsAt, expectedOrderVersion: version })).rejects.toMatchObject({ code: "EMPLOYEE_OFF" });
+    await expect(gateway.overrideAssignmentWithVersion({ assignmentId: id("204"), orderId: orderOneId, employeeId: employeeOneId, startsAt, endsAt, reason: "Owner", expectedOrderVersion: version })).rejects.toMatchObject({ code: "EMPLOYEE_OFF" });
+  });
+
+  it("blocks a replacement target on OFF and leaves the original assignment unchanged", async () => {
+    await gateway.confirmAssignment({ assignmentId: id("205"), orderId: orderOneId, employeeId: employeeOneId, startsAt, endsAt });
+    await gateway.markEmployeeOff(employeeTwoId, "2030-01-01");
+    await expect(gateway.replaceOrderAssignment({ oldAssignmentId: id("205"), newAssignmentId: id("206"), employeeId: employeeTwoId, startsAt, endsAt })).rejects.toMatchObject({ code: "EMPLOYEE_OFF" });
+    expect((await gateway.loadOrderAssignments(orderOneId)).find((item) => item.id === id("205"))?.status).toBe("SCHEDULED");
+  });
+
+  it("rejects marking OFF with active assignments but ignores completed and cancelled history", async () => {
+    await insertAssignment(id("207"), orderOneId, employeeOneId, "SCHEDULED");
+    await expect(gateway.markEmployeeOff(employeeOneId, "2030-01-01")).rejects.toMatchObject({ code: "EMPLOYEE_HAS_ACTIVE_ASSIGNMENTS" });
+    await admin.query("update assignments set status = 'COMPLETED' where id = $1", [id("207")]);
+    await insertAssignment(id("208"), orderTwoId, employeeOneId, "CANCELLED");
+    await expect(gateway.markEmployeeOff(employeeOneId, "2030-01-01")).resolves.toMatchObject({ offDate: "2030-01-01" });
+    await gateway.unmarkEmployeeOff(employeeOneId, "2030-01-01");
+    await expect(gateway.confirmAssignment({ assignmentId: id("209"), orderId: orderThreeId, employeeId: employeeOneId, startsAt, endsAt })).resolves.toMatchObject({ status: "SCHEDULED" });
+  });
+
+  it("uses Asia/Ho_Chi_Minh half-open OFF boundaries without blocking adjacent dates", async () => {
+    await gateway.markEmployeeOff(employeeOneId, "2030-01-02");
+    await expect(gateway.confirmAssignment({ assignmentId: id("210"), orderId: orderOneId, employeeId: employeeOneId, startsAt: new Date("2030-01-01T16:00:00Z"), endsAt: new Date("2030-01-01T17:00:00Z") })).resolves.toMatchObject({ status: "SCHEDULED" });
+    await expect(gateway.confirmAssignment({ assignmentId: id("211"), orderId: orderTwoId, employeeId: employeeTwoId, startsAt: new Date("2030-01-02T17:00:00Z"), endsAt: new Date("2030-01-02T18:00:00Z") })).resolves.toMatchObject({ status: "SCHEDULED" });
+    await expect(gateway.confirmAssignment({ assignmentId: id("212"), orderId: orderThreeId, employeeId: employeeOneId, startsAt: new Date("2030-01-01T16:30:00Z"), endsAt: new Date("2030-01-01T17:30:00Z") })).rejects.toMatchObject({ code: "EMPLOYEE_OFF" });
+    await expect(gateway.overrideAssignment({ assignmentId: id("213"), orderId: orderFourId, employeeId: employeeOneId, startsAt: new Date("2030-01-02T16:00:00Z"), endsAt: new Date("2030-01-02T17:00:00Z"), reason: "Late OFF day" })).rejects.toMatchObject({ code: "EMPLOYEE_OFF" });
+  });
+
+  it("enforces at most two OFF employees under concurrent third inserts", async () => {
+    await gateway.markEmployeeOff(employeeOneId, "2030-01-03");
+    const results = await Promise.allSettled([gateway.markEmployeeOff(employeeTwoId, "2030-01-03"), gateway.markEmployeeOff(employeeThreeId, "2030-01-03")]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.find((result) => result.status === "rejected")).toMatchObject({ reason: { code: "DAILY_OFF_LIMIT_REACHED" } });
+    expect((await admin.query("select * from employee_daily_off where off_date = '2030-01-03'")).rows).toHaveLength(2);
+  });
+
+  it("serializes concurrent mark-OFF and assignment creation so both cannot persist", async () => {
+    const marker = new Client({ connectionString: runtimeDatabaseUrl });
+    const confirmer = new Client({ connectionString: runtimeDatabaseUrl });
+    await Promise.all([marker.connect(), confirmer.connect()]);
+    try {
+      const results = await Promise.allSettled([
+        marker.query("select * from public.mark_employee_off($1, $2)", [employeeOneId, "2030-01-01"]),
+        confirmer.query("select * from public.confirm_assignment($1, $2, $3, $4, $5)", [id("214"), orderOneId, employeeOneId, startsAt, endsAt]),
+      ]);
+      expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+      expect(["PDA10", "PDA12"]).toContain((results.find((result) => result.status === "rejected") as PromiseRejectedResult).reason.code);
+      const persisted = await admin.query("select (select count(*) from employee_daily_off where employee_id = $1 and off_date = '2030-01-01') as off_count, (select count(*) from assignments where employee_id = $1 and status in ('SCHEDULED','IN_PROGRESS','DELAYED')) as assignment_count", [employeeOneId]);
+      expect(Number(persisted.rows[0].off_count) + Number(persisted.rows[0].assignment_count)).toBe(1);
+    } finally { await Promise.all([marker.end(), confirmer.end()]); }
+  });
+
+  it("denies runtime OFF-table DML, permits named functions, and revokes PUBLIC execute", async () => {
+    await expect(runtimePool.query("insert into public.employee_daily_off (employee_id, off_date) values ($1, '2030-01-04')", [employeeOneId])).rejects.toMatchObject({ code: "42501" });
+    await expect(runtimePool.query("select * from public.mark_employee_off($1, '2030-01-04')", [employeeOneId])).resolves.toMatchObject({ rows: [expect.objectContaining({ employee_id: employeeOneId })] });
+    await expect(runtimePool.query("select public.unmark_employee_off($1, '2030-01-04')", [employeeOneId])).resolves.toBeTruthy();
+    const security = await admin.query<{ proname: string; prosecdef: boolean; proconfig: string[]; owner: string; public_execute: boolean }>("select p.proname, p.prosecdef, p.proconfig, pg_get_userbyid(p.proowner) as owner, has_function_privilege('public', p.oid, 'EXECUTE') as public_execute from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('mark_employee_off', 'unmark_employee_off') order by p.proname");
+    expect(security.rows).toHaveLength(2);
+    for (const item of security.rows) expect(item).toMatchObject({ prosecdef: true, proconfig: ["search_path=pg_catalog, public, pg_temp"], public_execute: false });
+    expect(security.rows.every((item) => item.owner !== "dispatch_runtime")).toBe(true);
   });
 });

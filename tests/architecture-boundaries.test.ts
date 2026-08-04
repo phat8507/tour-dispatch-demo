@@ -16,4 +16,11 @@ describe("production architecture boundaries", () => {
     expect(dispatchFeature).not.toContain("setAssignments");
   });
   it("retires the transient RuntimeOverride operational source", async () => { const all = await Promise.all((await files(join(process.cwd(), "src"))).map((file) => readFile(file, "utf8"))); expect(all.join("\n")).not.toContain("RuntimeOverride"); });
+  it("keeps daily OFF client UI free of database/server imports and recommendation authority", async () => {
+    const panel = await readFile(join(process.cwd(), "src", "app", "owner", "OwnerDailyOffPanel.tsx"), "utf8");
+    expect(panel).not.toMatch(/from ["']pg["']/);
+    expect(panel).not.toContain("@/server/");
+    expect(panel).not.toContain("suggestAssignments");
+    expect(panel).not.toContain("scoreCandidate");
+  });
 });

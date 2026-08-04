@@ -1,22 +1,35 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { logout } from "../actions";
+import { OwnerDailyOffPanel } from "./OwnerDailyOffPanel";
 import { OwnerDispatchDashboard } from "@/features/dispatch/OwnerDispatchDashboard";
 import { buildOwnerDispatchMapModel } from "@/features/dispatch/owner-dispatch-map-model";
 import type { OwnerDispatchMapModel } from "@/features/dispatch/owner-dispatch-map-model";
 import type { OwnerDispatchTour } from "@/features/dispatch/owner-dispatch-view-model";
 import { createDispatchServerDependencies } from "@/server/dispatch-composition";
 import { authenticateSession } from "@/server/owner-auth";
+import type { DailyOffProjection } from "@/server/owner-dispatch-read-model";
+import { businessDateInHoChiMinh, isValidBusinessDate } from "@/domain/business-date";
 
 export const dynamic = "force-dynamic";
 
-export default async function OwnerDispatchPage() {
+function currentBusinessDate(): string {
+  return businessDateInHoChiMinh(new Date());
+}
+
+function selectedBusinessDate(value: string | undefined): string {
+  return value && isValidBusinessDate(value) ? value : currentBusinessDate();
+}
+
+export default async function OwnerDispatchPage({ searchParams }: { searchParams?: Promise<{ offDate?: string }> } = {}) {
   const dependencies = createDispatchServerDependencies();
   const token = (await cookies()).get("dispatch_session")?.value;
+  const offDate = selectedBusinessDate((await searchParams)?.offDate);
   let projection: {
     tours: OwnerDispatchTour[];
     candidates: Array<Array<{ id: string; name: string }>>;
     mapModel: OwnerDispatchMapModel;
+    dailyOff: DailyOffProjection;
   };
   try {
     authenticateSession(token, dependencies.owner);
@@ -25,17 +38,14 @@ export default async function OwnerDispatchPage() {
   }
 
   try {
-    const [tours, branches] = await Promise.all([
+    const [tours, branches, dailyOff] = await Promise.all([
       dependencies.readModel.listOwnerDispatchTours(),
       dependencies.readModel.listOwnerDispatchBranches(),
+      dependencies.readModel.listDailyOffEmployees(offDate),
     ]);
-    const candidates = await Promise.all(
-      tours.map(async (tour) => {
-        const employees = await dependencies.readModel.listActiveEmployeeCandidatesForOrder(tour.id);
-        return employees.map((employee) => ({ id: employee.id, name: employee.name }));
-      }),
-    );
-    projection = { tours, candidates, mapModel: buildOwnerDispatchMapModel(tours, branches) };
+    const candidatesByOrder = await dependencies.readModel.listActiveEmployeeCandidatesForOrders(tours.map((tour) => tour.id));
+    const candidates = tours.map((tour) => (candidatesByOrder.get(tour.id) ?? []).map((employee) => ({ id: employee.id, name: employee.name })));
+    projection = { tours, candidates, mapModel: buildOwnerDispatchMapModel(tours, branches), dailyOff };
   } catch {
     return (
       <main className="mx-auto w-full max-w-5xl p-6">
@@ -57,6 +67,7 @@ export default async function OwnerDispatchPage() {
           </button>
         </form>
       </header>
+      <OwnerDailyOffPanel selectedDate={offDate} {...projection.dailyOff} />
       <OwnerDispatchDashboard tours={projection.tours} candidates={projection.candidates} mapModel={projection.mapModel} />
     </main>
   );
