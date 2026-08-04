@@ -1,12 +1,10 @@
 import { useState, useEffect } from "react";
 import { DEMO_TIME } from "@/data/mockData";
 import { getLiveDemoTime } from "@/domain/realtime-clock";
-import { RuntimeOverride } from "@/domain/effective-assignment";
 
 export function useDispatchDashboard() {
   const [timeMode, setTimeModeInternal] = useState<"SIMULATED" | "LIVE">("SIMULATED");
   const [currentTime, setCurrentTime] = useState(DEMO_TIME);
-  const [runtimeOverrides, setRuntimeOverrides] = useState<Record<string, RuntimeOverride>>({});
 
   function setTimeMode(mode: "SIMULATED" | "LIVE") {
     setTimeModeInternal(mode);
@@ -31,7 +29,5 @@ export function useDispatchDashboard() {
     timeMode,
     setTimeMode,
     currentTime,
-    runtimeOverrides,
-    setRuntimeOverrides,
   };
 }

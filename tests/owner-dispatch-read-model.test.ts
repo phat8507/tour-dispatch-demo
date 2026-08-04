@@ -10,4 +10,11 @@ describe("PostgreSQL owner dispatch read model", () => {
   it("projects only active candidates and their durable skills in one query", async () => { const query = vi.fn().mockResolvedValue({ rows: [candidate, { ...candidate, id: "00000000-0000-4000-8000-000000000009", isActive: false }] }); const result = await modelWithQuery(query).listActiveEmployeeCandidatesForOrder(tour.id); expect(result).toEqual([candidate]); expect(result[0].skills[0]).toMatchObject({ technicalLevel: "WEAK", serviceId: tour.services[0].id }); expect(query).toHaveBeenCalledTimes(1); });
   it("returns an empty durable state without mock fallback", async () => { const query = vi.fn().mockResolvedValue({ rows: [] }); await expect(modelWithQuery(query).listOwnerDispatchTours()).resolves.toEqual([]); });
   it("maps database failures to a safe typed read error", async () => { const query = vi.fn().mockRejectedValue(new Error("password secret raw sql")); await expect(modelWithQuery(query).listOwnerDispatchTours()).rejects.toBeInstanceOf(OwnerDispatchReadError); await expect(modelWithQuery(query).listActiveEmployeeCandidatesForOrder(tour.id)).rejects.toMatchObject({ message: "OWNER_DISPATCH_READ_FAILURE" }); });
+  it("loads only durable CS1 and CS2 branch locations with valid database coordinates", async () => {
+    const rows = [{ id: "branch-one", branchId: "CS1", name: "Co so 1", address: "Address", latitude: 10, longitude: 106 }];
+    const query = vi.fn().mockResolvedValue({ rows });
+    await expect(modelWithQuery(query).listOwnerDispatchBranches()).resolves.toEqual(rows);
+    expect(query.mock.calls[0][0]).toContain("location_type = 'BRANCH'");
+    expect(query.mock.calls[0][0]).toContain("branch_id in ('CS1', 'CS2')");
+  });
 });
