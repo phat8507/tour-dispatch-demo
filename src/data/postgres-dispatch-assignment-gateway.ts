@@ -4,6 +4,7 @@ import type {
   ConfirmAssignmentCommand,
   DispatchAssignmentGateway,
   DurableAssignment,
+  DailyEmployeeOff,
   OverrideAssignmentCommand,
   ReplaceOrderAssignmentCommand,
   TourWithAssignedEmployees,
@@ -24,6 +25,7 @@ interface AssignmentRow {
 }
 
 interface VersionedAssignmentRow extends AssignmentRow { order_version: string; }
+interface DailyEmployeeOffRow { employee_id: string; off_date: string; }
 
 function toAssignment(row: AssignmentRow): DurableAssignment {
   return {
@@ -50,6 +52,10 @@ function toPersistenceError(error: unknown): DispatchPersistenceError {
     PDA07: "ASSIGNMENT_ALREADY_STARTED",
     PDA08: "ASSIGNMENT_INVALID_STATE",
     PDA09: "STALE_VERSION",
+    PDA10: "EMPLOYEE_OFF",
+    PDA11: "EMPLOYEE_INACTIVE",
+    PDA12: "EMPLOYEE_HAS_ACTIVE_ASSIGNMENTS",
+    PDA13: "DAILY_OFF_LIMIT_REACHED",
   };
   return new DispatchPersistenceError(databaseCode ? (codeByDatabaseCode[databaseCode] ?? "PERSISTENCE_FAILURE") : "PERSISTENCE_FAILURE", error);
 }
@@ -122,5 +128,17 @@ export class PostgresDispatchAssignmentGateway implements DispatchAssignmentGate
       order by o.requested_at, o.id
     `);
     return result.rows.map((row) => ({ order: { id: row.id, customerName: row.customer_name, requestedAt: row.requested_at, status: row.status }, assignedEmployees: row.assigned_employees }));
+  }
+
+  async markEmployeeOff(employeeId: string, offDate: string): Promise<DailyEmployeeOff> {
+    try {
+      const result = await this.pool.query<DailyEmployeeOffRow>("select employee_id, off_date::text from public.mark_employee_off($1, $2)", [employeeId, offDate]);
+      return { employeeId: result.rows[0].employee_id, offDate: result.rows[0].off_date };
+    } catch (error) { throw toPersistenceError(error); }
+  }
+
+  async unmarkEmployeeOff(employeeId: string, offDate: string): Promise<void> {
+    try { await this.pool.query("select public.unmark_employee_off($1, $2)", [employeeId, offDate]); }
+    catch (error) { throw toPersistenceError(error); }
   }
 }

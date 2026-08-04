@@ -4,12 +4,13 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createDispatchServerDependencies } from "@/server/dispatch-composition";
 import { createSessionToken, verifyOwnerPassword } from "@/server/owner-auth";
-import { confirmDispatchAssignment, overrideDispatchAssignment, type DispatchCommandResult } from "@/server/dispatch-commands";
+import { confirmDispatchAssignment, markEmployeeOff, overrideDispatchAssignment, unmarkEmployeeOff } from "@/server/dispatch-commands";
 
 export type OwnerMutationState = { message: string; ok: boolean };
 function field(formData: FormData, name: string): string { const value = formData.get(name); return typeof value === "string" ? value : ""; }
-function validUuid(value: string): boolean { return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value); }
-function actionState(result: DispatchCommandResult): OwnerMutationState { return result.ok ? { ok: true, message: "Đã lưu điều phối." } : { ok: false, message: result.message }; }
+function validUuid(value: string): boolean { return /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value); }
+function actionState(result: { ok: true } | { ok: false; message: string }): OwnerMutationState { return result.ok ? { ok: true, message: "Đã lưu điều phối." } : { ok: false, message: result.message }; }
+function dailyOffInput(formData: FormData) { return { employeeId: field(formData, "employeeId"), offDate: field(formData, "offDate") }; }
 async function mutationInput(formData: FormData) {
   const orderId = field(formData, "orderId"); const employeeId = field(formData, "employeeId"); const startsAt = field(formData, "startsAt"); const endsAt = field(formData, "endsAt"); const expectedOrderVersion = field(formData, "expectedOrderVersion");
   const start = new Date(startsAt); const end = new Date(endsAt);
@@ -26,6 +27,20 @@ export async function overrideOwnerDispatch(_: OwnerMutationState, formData: For
   const input = await mutationInput(formData); const reason = field(formData, "overrideReason"); if (!input || !reason.trim()) return { ok: false, message: "Cần nhập lý do ghi đè." };
   const dependencies = createDispatchServerDependencies(); const token = (await cookies()).get("dispatch_session")?.value;
   const result = await overrideDispatchAssignment({ ...input, reason: reason.trim() }, token, { ...dependencies, eligibility: dependencies.readModel });
+  if (result.ok) revalidatePath("/owner"); return actionState(result);
+}
+
+export async function markOwnerEmployeeOff(_: OwnerMutationState, formData: FormData): Promise<OwnerMutationState> {
+  const input = dailyOffInput(formData);
+  const dependencies = createDispatchServerDependencies(); const token = (await cookies()).get("dispatch_session")?.value;
+  const result = await markEmployeeOff(input, token, dependencies);
+  if (result.ok) revalidatePath("/owner"); return actionState(result);
+}
+
+export async function unmarkOwnerEmployeeOff(_: OwnerMutationState, formData: FormData): Promise<OwnerMutationState> {
+  const input = dailyOffInput(formData);
+  const dependencies = createDispatchServerDependencies(); const token = (await cookies()).get("dispatch_session")?.value;
+  const result = await unmarkEmployeeOff(input, token, dependencies);
   if (result.ok) revalidatePath("/owner"); return actionState(result);
 }
 

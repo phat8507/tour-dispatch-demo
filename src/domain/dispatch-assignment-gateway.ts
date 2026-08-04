@@ -9,6 +9,10 @@ export type DispatchPersistenceErrorCode =
   | "ASSIGNMENT_NOT_FOUND"
   | "ASSIGNMENT_ALREADY_STARTED"
   | "ASSIGNMENT_INVALID_STATE"
+  | "EMPLOYEE_OFF"
+  | "EMPLOYEE_INACTIVE"
+  | "EMPLOYEE_HAS_ACTIVE_ASSIGNMENTS"
+  | "DAILY_OFF_LIMIT_REACHED"
   | "STALE_VERSION"
   | "PERSISTENCE_FAILURE";
 
@@ -80,6 +84,11 @@ export interface TourWithAssignedEmployees {
   assignedEmployees: AssignedEmployee[];
 }
 
+export interface DailyEmployeeOff {
+  employeeId: string;
+  offDate: string;
+}
+
 /** Named application boundary for durable dispatch mutations. */
 export interface DispatchAssignmentGateway {
   confirmAssignment(command: ConfirmAssignmentCommand): Promise<DurableAssignment>;
@@ -90,4 +99,6 @@ export interface DispatchAssignmentGateway {
   cancelOrder(orderId: string): Promise<void>;
   loadOrderAssignments(orderId: string): Promise<DurableAssignment[]>;
   listToursWithAssignedEmployees(): Promise<TourWithAssignedEmployees[]>;
+  markEmployeeOff(employeeId: string, offDate: string): Promise<DailyEmployeeOff>;
+  unmarkEmployeeOff(employeeId: string, offDate: string): Promise<void>;
 }

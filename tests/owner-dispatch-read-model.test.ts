@@ -17,4 +17,20 @@ describe("PostgreSQL owner dispatch read model", () => {
     expect(query.mock.calls[0][0]).toContain("location_type = 'BRANCH'");
     expect(query.mock.calls[0][0]).toContain("branch_id in ('CS1', 'CS2')");
   });
+  it("bulk-loads canonical daily OFF state with stable employee ordering", async () => {
+    const rows = [{ id: "employee-one", name: "Employee One", isActive: true, isOff: true }];
+    const query = vi.fn().mockResolvedValue({ rows });
+    await expect(modelWithQuery(query).listDailyOffEmployees("2030-01-01")).resolves.toEqual({ employees: rows, offCount: 1, maxOff: 2 });
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(query.mock.calls[0][1]).toEqual(["2030-01-01"]);
+  });
+
+  it("bulk-loads candidates for all tours while excluding OFF employees by tour business date", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [{ ...candidate, orderId: tour.id }] });
+    const result = await modelWithQuery(query).listActiveEmployeeCandidatesForOrders([tour.id]);
+    expect(result.get(tour.id)).toEqual([candidate]);
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(query.mock.calls[0][0]).toContain("employee_daily_off");
+    expect(query.mock.calls[0][0]).toContain("Asia/Ho_Chi_Minh");
+  });
 });

@@ -36,3 +36,10 @@ export type OwnerDispatchBranch = {
   latitude: number;
   longitude: number;
 };
+
+export type DailyOffEmployee = {
+  id: string;
+  name: string;
+  isActive: boolean;
+  isOff: boolean;
+};
