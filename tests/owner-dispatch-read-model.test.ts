@@ -48,4 +48,21 @@ describe("PostgreSQL owner dispatch read model", () => {
     const query = vi.fn().mockRejectedValue(new Error("raw SQL secret"));
     await expect(modelWithQuery(query).listCandidateRecommendationsForTours([tour])).rejects.toBeInstanceOf(OwnerDispatchReadError);
   });
+
+  it("lists employee routing origins with minimum owner DTO fields and ISO string updated_at", async () => {
+    const rows = [{ employee_id: candidate.id, employee_name: candidate.name, is_active: true, latitude: 10, longitude: 106, label: "Home", updated_at: new Date("2030-01-01T08:00:00Z") }];
+    const query = vi.fn().mockResolvedValue({ rows });
+    const result = await modelWithQuery(query).listEmployeeRoutingOrigins();
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(query.mock.calls[0][0]).toContain("public.list_employee_routing_origins()");
+    expect(result[0]).toEqual({
+      employeeId: candidate.id,
+      employeeName: candidate.name,
+      isActive: true,
+      latitude: 10,
+      longitude: 106,
+      label: "Home",
+      updatedAt: "2030-01-01T08:00:00.000Z"
+    });
+  });
 });

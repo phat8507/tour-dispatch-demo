@@ -56,7 +56,7 @@ describe("durable dispatch schema", () => {
   });
   it("has all migrations recorded and is safe to run repeatedly", async () => {
     const result = await admin.query<{ filename: string }>("select filename from dispatch_schema_migrations order by filename");
-    expect(result.rows.map((row) => row.filename)).toEqual(["001_durable_dispatch_schema.sql", "002_assignment_invariant_functions.sql", "003_dispatch_runtime_privileges.sql", "004_dispatch_schema_ownership.sql", "005_harden_named_dispatch_functions.sql", "006_atomic_versioned_dispatch_commands.sql", "007_daily_employee_off.sql"]);
+    expect(result.rows.map((row) => row.filename)).toEqual(["001_durable_dispatch_schema.sql", "002_assignment_invariant_functions.sql", "003_dispatch_runtime_privileges.sql", "004_dispatch_schema_ownership.sql", "005_harden_named_dispatch_functions.sql", "006_atomic_versioned_dispatch_commands.sql", "007_daily_employee_off.sql", "008_employee_routing_origins.sql"]);
   });
 
   it("provides atomic versioned confirm and override commands without granting runtime DML", async () => {
@@ -239,5 +239,63 @@ describe("durable dispatch schema", () => {
     expect(security.rows).toHaveLength(2);
     for (const item of security.rows) expect(item).toMatchObject({ prosecdef: true, proconfig: ["search_path=pg_catalog, public, pg_temp"], public_execute: false });
     expect(security.rows.every((item) => item.owner !== "dispatch_runtime")).toBe(true);
+  });
+
+  it("enforces table constraints on employee_routing_origins", async () => {
+    await expect(admin.query("insert into public.employee_routing_origins (employee_id, latitude, longitude, label) values ($1, 91, 100, null)", [employeeOneId])).rejects.toMatchObject({ code: "23514" }); // latitude bounds
+    await expect(admin.query("insert into public.employee_routing_origins (employee_id, latitude, longitude, label) values ($1, 10, 181, null)", [employeeOneId])).rejects.toMatchObject({ code: "23514" }); // longitude bounds
+    await expect(admin.query("insert into public.employee_routing_origins (employee_id, latitude, longitude, label) values ($1, 10, 100, $2)", [employeeOneId, "a".repeat(101)])).rejects.toMatchObject({ code: "23514" }); // label length
+    // Test that ON DELETE CASCADE works
+    await admin.query("insert into public.employee_routing_origins (employee_id, latitude, longitude, label) values ($1, 10, 100, 'Test')", [employeeOneId]);
+    await admin.query("delete from public.employees where id = $1", [employeeOneId]);
+    const res = await admin.query("select * from public.employee_routing_origins where employee_id = $1", [employeeOneId]);
+    expect(res.rowCount).toBe(0);
+  });
+
+  it("denies direct dispatch_runtime DML on employee_routing_origins while allowing named functions", async () => {
+    const runtime = new Client({ connectionString: runtimeDatabaseUrl });
+    await runtime.connect();
+    try {
+      await runtime.query("set role dispatch_runtime");
+      await expect(runtime.query("select * from public.employee_routing_origins")).rejects.toMatchObject({ code: "42501" });
+      await expect(runtime.query("insert into public.employee_routing_origins (employee_id, latitude, longitude, label) values ($1, 10, 100, 'Test')", [employeeOneId])).rejects.toMatchObject({ code: "42501" });
+      await expect(runtime.query("update public.employee_routing_origins set latitude = 11")).rejects.toMatchObject({ code: "42501" });
+      await expect(runtime.query("delete from public.employee_routing_origins")).rejects.toMatchObject({ code: "42501" });
+
+      await expect(runtime.query("select * from public.list_employee_routing_origins()")).resolves.toBeTruthy();
+      await expect(runtime.query("select public.upsert_employee_routing_origin($1, 10, 100, 'Test Label')", [employeeOneId])).resolves.toBeTruthy();
+      await expect(runtime.query("select public.remove_employee_routing_origin($1)", [employeeOneId])).resolves.toBeTruthy();
+    } finally {
+      await runtime.query("reset role").catch(() => undefined);
+      await runtime.end();
+    }
+  });
+
+  it("enforces business rules on upsert_employee_routing_origin", async () => {
+    await expect(runtimePool.query("select public.upsert_employee_routing_origin($1, 10, 100, 'Test Label')", [id("999")])).rejects.toMatchObject({ code: "PDA05" }); // EMPLOYEE_NOT_FOUND
+    await admin.query("update public.employees set is_active = false where id = $1", [employeeOneId]);
+    await expect(runtimePool.query("select public.upsert_employee_routing_origin($1, 10, 100, 'Test Label')", [employeeOneId])).rejects.toMatchObject({ code: "PDA11" }); // EMPLOYEE_INACTIVE
+    // Blank label normalization
+    await runtimePool.query("select public.upsert_employee_routing_origin($1, 10, 100, '   ')", [employeeTwoId]);
+    const blankRes = await admin.query("select label from public.employee_routing_origins where employee_id = $1", [employeeTwoId]);
+    expect(blankRes.rows[0].label).toBeNull();
+    // Trim label
+    await runtimePool.query("select public.upsert_employee_routing_origin($1, 10, 100, '  Trim me  ')", [employeeTwoId]);
+    const trimRes = await admin.query("select label from public.employee_routing_origins where employee_id = $1", [employeeTwoId]);
+    expect(trimRes.rows[0].label).toBe("Trim me");
+    // Invalid coordinates via function (if validated in function) or table bounds
+    await expect(runtimePool.query("select public.upsert_employee_routing_origin($1, 91, 100, 'Test')", [employeeTwoId])).rejects.toMatchObject({ code: "PDA14" }); // INVALID_COORDINATES
+  });
+
+  it("allows removing origin for inactive employee and idempotent removal", async () => {
+    await runtimePool.query("select public.upsert_employee_routing_origin($1, 10, 100, 'Test Label')", [employeeThreeId]);
+    await admin.query("update public.employees set is_active = false where id = $1", [employeeThreeId]);
+    // Can remove even if inactive
+    await expect(runtimePool.query("select public.remove_employee_routing_origin($1)", [employeeThreeId])).resolves.toBeTruthy();
+    const res = await admin.query("select * from public.employee_routing_origins where employee_id = $1", [employeeThreeId]);
+    expect(res.rowCount).toBe(0);
+
+    // Idempotent
+    await expect(runtimePool.query("select public.remove_employee_routing_origin($1)", [employeeThreeId])).resolves.toBeTruthy();
   });
 });

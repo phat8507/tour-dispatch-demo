@@ -14,6 +14,8 @@ export type DispatchPersistenceErrorCode =
   | "EMPLOYEE_HAS_ACTIVE_ASSIGNMENTS"
   | "DAILY_OFF_LIMIT_REACHED"
   | "STALE_VERSION"
+  | "INVALID_COORDINATES"
+  | "INVALID_LABEL"
   | "PERSISTENCE_FAILURE";
 
 export class DispatchPersistenceError extends Error {

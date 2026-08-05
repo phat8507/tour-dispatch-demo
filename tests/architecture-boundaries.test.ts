@@ -14,6 +14,8 @@ describe("production architecture boundaries", () => {
     expect(dispatchFeature).not.toContain("confirmOwnerDispatch");
     expect(dispatchFeature).not.toContain("overrideOwnerDispatch");
     expect(dispatchFeature).not.toContain("setAssignments");
+    expect(dispatchFeature).not.toContain("employee_routing_origins");
+    expect(dispatchFeature).not.toContain("listEmployeeRoutingOrigins");
   });
   it("retires the transient RuntimeOverride operational source", async () => { const all = await Promise.all((await files(join(process.cwd(), "src"))).map((file) => readFile(file, "utf8"))); expect(all.join("\n")).not.toContain("RuntimeOverride"); });
   it("keeps daily OFF client UI free of database/server imports and recommendation authority", async () => {
@@ -30,5 +32,16 @@ describe("production architecture boundaries", () => {
     expect(source).not.toContain("TravelTimeProvider");
     expect(source).not.toContain("confirmOwnerDispatch");
     expect(source).not.toContain("overrideOwnerDispatch");
+    expect(source).not.toContain("employee_routing_origins");
+  });
+  it("keeps owner routing origin panel free of database/server imports and map mutation authority", async () => {
+    const filesList = await files(join(process.cwd(), "src", "app", "owner"));
+    const panelPath = filesList.find(f => f.includes("OwnerRoutingOriginPanel.tsx"));
+    if (panelPath) {
+      const panel = await readFile(panelPath, "utf8");
+      expect(panel).not.toMatch(/from ["']pg["']/);
+      expect(panel).not.toContain("@/server/");
+      expect(panel).not.toContain("TravelTimeProvider");
+    }
   });
 });

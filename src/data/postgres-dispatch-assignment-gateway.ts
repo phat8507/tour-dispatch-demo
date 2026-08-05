@@ -56,6 +56,8 @@ function toPersistenceError(error: unknown): DispatchPersistenceError {
     PDA11: "EMPLOYEE_INACTIVE",
     PDA12: "EMPLOYEE_HAS_ACTIVE_ASSIGNMENTS",
     PDA13: "DAILY_OFF_LIMIT_REACHED",
+    PDA14: "INVALID_COORDINATES",
+    PDA15: "INVALID_LABEL",
   };
   return new DispatchPersistenceError(databaseCode ? (codeByDatabaseCode[databaseCode] ?? "PERSISTENCE_FAILURE") : "PERSISTENCE_FAILURE", error);
 }
@@ -139,6 +141,16 @@ export class PostgresDispatchAssignmentGateway implements DispatchAssignmentGate
 
   async unmarkEmployeeOff(employeeId: string, offDate: string): Promise<void> {
     try { await this.pool.query("select public.unmark_employee_off($1, $2)", [employeeId, offDate]); }
+    catch (error) { throw toPersistenceError(error); }
+  }
+
+  async upsertRoutingOrigin(employeeId: string, latitude: number, longitude: number, label: string | null): Promise<void> {
+    try { await this.pool.query("select public.upsert_employee_routing_origin($1, $2, $3, $4)", [employeeId, latitude, longitude, label]); }
+    catch (error) { throw toPersistenceError(error); }
+  }
+
+  async removeRoutingOrigin(employeeId: string): Promise<void> {
+    try { await this.pool.query("select public.remove_employee_routing_origin($1)", [employeeId]); }
     catch (error) { throw toPersistenceError(error); }
   }
 }

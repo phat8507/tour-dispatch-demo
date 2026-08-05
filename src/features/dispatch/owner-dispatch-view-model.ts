@@ -43,3 +43,13 @@ export type DailyOffEmployee = {
   isActive: boolean;
   isOff: boolean;
 };
+
+export type EmployeeRoutingOriginDto = {
+  employeeId: string;
+  employeeName: string;
+  isActive: boolean;
+  latitude: number | null;
+  longitude: number | null;
+  label: string | null;
+  updatedAt: string | null;
+};

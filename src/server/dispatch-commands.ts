@@ -10,7 +10,8 @@ export type DispatchCommandError =
   | "ORDER_NOT_FOUND" | "ORDER_NOT_ASSIGNABLE" | "EMPLOYEE_NOT_FOUND"
   | "EMPLOYEE_INACTIVE" | "EMPLOYEE_MISSING_REQUIRED_SKILL" | "EMPLOYEE_OFF"
   | "EMPLOYEE_HAS_ACTIVE_ASSIGNMENTS" | "DAILY_OFF_LIMIT_REACHED"
-  | "STALE_VERSION" | "ASSIGNMENT_OVERLAP" | "PERSISTENCE_FAILURE";
+  | "STALE_VERSION" | "ASSIGNMENT_OVERLAP" | "PERSISTENCE_FAILURE"
+  | "INVALID_COORDINATES" | "INVALID_LABEL";
 
 export interface DispatchEligibility { evaluateEligibility(orderId: string, employeeId: string, options?: { allowUnknownSkill?: boolean }): Promise<EligibilityCause>; }
 export interface ConfirmDispatchInput { orderId: string; employeeId: string; startsAt: string; endsAt: string; expectedOrderVersion: string; }
@@ -36,6 +37,8 @@ const messages: Record<DispatchCommandError, string> = {
   STALE_VERSION: "Dữ liệu tour đã thay đổi. Hãy tải lại trước khi xác nhận.",
   ASSIGNMENT_OVERLAP: "Lịch làm việc của nhân viên bị trùng.",
   PERSISTENCE_FAILURE: "Không thể lưu điều phối. Vui lòng thử lại.",
+  INVALID_COORDINATES: "Toạ độ điểm xuất phát không hợp lệ.",
+  INVALID_LABEL: "Tên nhãn điểm xuất phát không hợp lệ.",
 };
 
 function failure(error: DispatchCommandError): CommandFailure { return { ok: false, error, message: messages[error] }; }
@@ -49,13 +52,16 @@ function authorize(token: string | undefined, owner: OwnerConfig): DispatchComma
 }
 function mapPersistence(error: unknown): DispatchCommandError {
   if (!(error instanceof DispatchPersistenceError)) return "PERSISTENCE_FAILURE";
-  const exposed = new Set<DispatchCommandError>(["STALE_VERSION", "ASSIGNMENT_OVERLAP", "EMPLOYEE_NOT_FOUND", "EMPLOYEE_INACTIVE", "EMPLOYEE_OFF", "EMPLOYEE_HAS_ACTIVE_ASSIGNMENTS", "DAILY_OFF_LIMIT_REACHED"]);
+  const exposed = new Set<DispatchCommandError>(["STALE_VERSION", "ASSIGNMENT_OVERLAP", "EMPLOYEE_NOT_FOUND", "EMPLOYEE_INACTIVE", "EMPLOYEE_OFF", "EMPLOYEE_HAS_ACTIVE_ASSIGNMENTS", "DAILY_OFF_LIMIT_REACHED", "INVALID_COORDINATES", "INVALID_LABEL"]);
   return exposed.has(error.code as DispatchCommandError) ? error.code as DispatchCommandError : "PERSISTENCE_FAILURE";
 }
 function validDailyOffInput(input: DailyOffCommandInput): boolean {
   if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(input.employeeId)) return false;
   return isValidBusinessDate(input.offDate);
 }
+export interface UpsertRoutingOriginInput { employeeId: string; latitude: number; longitude: number; label: string | null; }
+export interface RemoveRoutingOriginInput { employeeId: string; }
+export type RoutingOriginCommandResult = { ok: true } | CommandFailure;
 
 export async function confirmDispatchAssignment(input: ConfirmDispatchInput, token: string | undefined, dependencies: { owner: OwnerConfig; eligibility: DispatchEligibility; gateway: DispatchAssignmentGateway }): Promise<DispatchCommandResult> {
   const auth = authorize(token, dependencies.owner); if (auth) return failure(auth);
@@ -86,5 +92,20 @@ export async function unmarkEmployeeOff(input: DailyOffCommandInput, token: stri
   const auth = authorize(token, dependencies.owner); if (auth) return failure(auth);
   if (!validDailyOffInput(input)) return failure("INVALID_INPUT");
   try { await dependencies.gateway.unmarkEmployeeOff(input.employeeId, input.offDate); return { ok: true }; }
+  catch (error) { return failure(mapPersistence(error)); }
+}
+
+export async function upsertEmployeeRoutingOrigin(input: UpsertRoutingOriginInput, token: string | undefined, dependencies: { owner: OwnerConfig; gateway: { upsertRoutingOrigin(employeeId: string, latitude: number, longitude: number, label: string | null): Promise<void> } }): Promise<RoutingOriginCommandResult> {
+  const auth = authorize(token, dependencies.owner); if (auth) return failure(auth);
+  if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(input.employeeId)) return failure("INVALID_INPUT");
+  if (!Number.isFinite(input.latitude) || !Number.isFinite(input.longitude) || input.latitude < -90 || input.latitude > 90 || input.longitude < -180 || input.longitude > 180) return failure("INVALID_COORDINATES");
+  try { await dependencies.gateway.upsertRoutingOrigin(input.employeeId, input.latitude, input.longitude, input.label); return { ok: true }; }
+  catch (error) { return failure(mapPersistence(error)); }
+}
+
+export async function removeEmployeeRoutingOrigin(input: RemoveRoutingOriginInput, token: string | undefined, dependencies: { owner: OwnerConfig; gateway: { removeRoutingOrigin(employeeId: string): Promise<void> } }): Promise<RoutingOriginCommandResult> {
+  const auth = authorize(token, dependencies.owner); if (auth) return failure(auth);
+  if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(input.employeeId)) return failure("INVALID_INPUT");
+  try { await dependencies.gateway.removeRoutingOrigin(input.employeeId); return { ok: true }; }
   catch (error) { return failure(mapPersistence(error)); }
 }
