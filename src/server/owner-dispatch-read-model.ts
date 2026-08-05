@@ -2,12 +2,18 @@ import type { Pool } from "pg";
 import type { DailyOffEmployee, OwnerDispatchBranch, OwnerDispatchTour, EmployeeRoutingOriginDto } from "@/features/dispatch/owner-dispatch-view-model";
 import { recommendProductionCandidates } from "@/domain/production-candidate-recommendations";
 import type { CandidateRecommendation, ProductionRecommendationAssignment, ProductionRecommendationEmployee } from "@/domain/production-candidate-recommendations";
+import { enrichBaselineRecommendations, isUrgentTour } from "@/domain/production-candidate-recommendations";
+import { orchestrateRecommendationTravel, type RoutingCandidate } from "./owner-recommendation-travel-orchestrator";
+import type { ProductionTravelTimeProvider } from "@/domain/production-travel-time-provider";
+import type { RoutingPoint } from "@/domain/effective-routing-origin";
 
 export type { DailyOffEmployee, OwnerDispatchBranch, OwnerDispatchTour, EmployeeRoutingOriginDto } from "@/features/dispatch/owner-dispatch-view-model";
 export type ActiveEmployeeCandidate = { id: string; name: string; homeBranchId: "CS1" | "CS2"; closingLevel: "STRONG" | "NORMAL" | "WEAK"; isActive: boolean; skills: Array<{ serviceId: string; serviceName: string; technicalLevel: "STRONG" | "NORMAL" | "WEAK" }> };
 export type EligibilityCause = "ORDER_NOT_FOUND" | "ORDER_NOT_ASSIGNABLE" | "EMPLOYEE_NOT_FOUND" | "EMPLOYEE_INACTIVE" | "EMPLOYEE_MISSING_REQUIRED_SKILL" | "EMPLOYEE_OFF" | "ELIGIBLE";
 export type DailyOffProjection = { employees: DailyOffEmployee[]; offCount: number; maxOff: 2 };
-export type OwnerTourRecommendations = { orderId: string; recommendations: CandidateRecommendation[] };
+export type OwnerTourRecommendations = { orderId: string; recommendations: CandidateRecommendation[]; providerWarning?: "NO_PROVIDER" | "TIMEOUT" | "RATE_LIMITED" | "MALFORMED_RESPONSE" | "TOTAL_FAILURE" };
+export type StoredRoutingOrigin = Readonly<{ employeeId: string; latitude: number; longitude: number }>;
+export type OwnerRoutingOriginLoad = Readonly<{ panelOrigins: EmployeeRoutingOriginDto[]; byEmployeeId: ReadonlyMap<string, StoredRoutingOrigin> }>;
 
 export class OwnerDispatchReadError extends Error { constructor(cause?: unknown) { super("OWNER_DISPATCH_READ_FAILURE", { cause }); this.name = "OwnerDispatchReadError"; } }
 
@@ -15,8 +21,9 @@ type RecommendationRow = {
   orderId: string; id: string; name: string; isActive: boolean; isOff: boolean;
   homeBranchId: "CS1" | "CS2"; closingLevel: "STRONG" | "NORMAL" | "WEAK";
   homeBranchCoordinatesAvailable: boolean;
+  homeBranchLatitude: number | null; homeBranchLongitude: number | null;
   skills: ProductionRecommendationEmployee["skills"];
-  assignments: ProductionRecommendationAssignment[];
+  assignments: Array<ProductionRecommendationAssignment & { id: string; customer: RoutingPoint | null }>;
 };
 
 function recommendationEmployee(row: RecommendationRow): ProductionRecommendationEmployee {
@@ -79,17 +86,20 @@ export class PostgresOwnerDispatchReadModel {
       return byOrder;
     } catch (error) { throw new OwnerDispatchReadError(error); }
   }
-  async listCandidateRecommendationsForTours(tours: OwnerDispatchTour[], now: Date = new Date()): Promise<OwnerTourRecommendations[]> {
+  async listCandidateRecommendationsForTours(tours: OwnerDispatchTour[], now: Date = new Date(), origins?: ReadonlyMap<string, StoredRoutingOrigin>, provider?: ProductionTravelTimeProvider): Promise<OwnerTourRecommendations[]> {
     if (tours.length === 0) return [];
     try {
       const result = await this.pool.query<RecommendationRow>(`select o.id as "orderId", e.id, e.name, e.is_active as "isActive",
         exists (select 1 from public.employee_daily_off daily_off where daily_off.employee_id = e.id and daily_off.off_date = (o.requested_at at time zone 'Asia/Ho_Chi_Minh')::date) as "isOff",
         e.home_branch_id as "homeBranchId", e.closing_level as "closingLevel",
         exists (select 1 from public.locations branch where branch.location_type = 'BRANCH' and branch.branch_id = e.home_branch_id and branch.latitude is not null and branch.longitude is not null) as "homeBranchCoordinatesAvailable",
+        (select branch.latitude from public.locations branch where branch.location_type = 'BRANCH' and branch.branch_id = e.home_branch_id order by branch.id limit 1) as "homeBranchLatitude",
+        (select branch.longitude from public.locations branch where branch.location_type = 'BRANCH' and branch.branch_id = e.home_branch_id order by branch.id limit 1) as "homeBranchLongitude",
         coalesce((select json_agg(json_build_object('serviceId', service.id, 'serviceName', service.name, 'technicalLevel', skill.technical_level) order by service.id)
           from public.employee_service_skills skill join public.services service on service.id = skill.service_id where skill.employee_id = e.id), '[]'::json) as skills,
-        coalesce((select json_agg(json_build_object('orderId', assignment.order_id, 'startsAt', assignment.starts_at::text, 'endsAt', assignment.ends_at::text, 'status', assignment.status,
-          'locationCoordinatesAvailable', assignment_location.latitude is not null and assignment_location.longitude is not null) order by assignment.starts_at, assignment.id)
+        coalesce((select json_agg(json_build_object('id', assignment.id, 'orderId', assignment.order_id, 'startsAt', assignment.starts_at::text, 'endsAt', assignment.ends_at::text, 'status', assignment.status,
+          'locationCoordinatesAvailable', assignment_location.latitude is not null and assignment_location.longitude is not null,
+          'customer', case when assignment_location.latitude is not null and assignment_location.longitude is not null then json_build_object('latitude', assignment_location.latitude, 'longitude', assignment_location.longitude) else null end) order by assignment.starts_at, assignment.id)
           from public.assignments assignment join public.orders assignment_order on assignment_order.id = assignment.order_id
           join public.locations assignment_location on assignment_location.id = assignment_order.location_id
           where assignment.employee_id = e.id and (
@@ -103,13 +113,20 @@ export class PostgresOwnerDispatchReadModel {
         order by o.id, e.id`, [tours.map((tour) => tour.id), now]);
       const employeesByOrder = new Map<string, ProductionRecommendationEmployee[]>(tours.map((tour) => [tour.id, []]));
       for (const row of result.rows) employeesByOrder.get(row.orderId)?.push(recommendationEmployee(row));
-      return tours.map((tour) => {
+      return Promise.all(tours.map(async (tour) => {
         const status = productionTourStatus(tour.status);
-        return { orderId: tour.id, recommendations: status ? recommendProductionCandidates({
+        const baseline = status ? recommendProductionCandidates({
           tour: { id: tour.id, requestedAt: tour.requestedAt, status, destinationCoordinatesAvailable: coordinatesAvailable(tour.location.latitude, tour.location.longitude), services: tour.services },
           employees: employeesByOrder.get(tour.id) ?? [], now: now.toISOString(),
-        }) : [] };
-      });
+        }) : [];
+        if (!provider || !origins) return { orderId: tour.id, recommendations: baseline };
+        const rows = result.rows.filter((row) => row.orderId === tour.id && baseline.some((candidate) => candidate.employeeId === row.id));
+        const candidates: RoutingCandidate[] = rows.map((row) => ({ employeeId: row.id, isActive: row.isActive, isOff: row.isOff, assignments: row.assignments.map((assignment) => ({ id: assignment.id, startsAt: assignment.startsAt, endsAt: assignment.endsAt, status: assignment.status, customer: assignment.customer })), storedOrigin: origins.get(row.id) ?? null, homeBranch: row.homeBranchLatitude === null || row.homeBranchLongitude === null ? null : { latitude: row.homeBranchLatitude, longitude: row.homeBranchLongitude } }));
+        const duration = tour.services.reduce((total, service) => total + service.durationMinutes, 0);
+        const orchestration = await orchestrateRecommendationTravel({ candidates, destination: { latitude: tour.location.latitude, longitude: tour.location.longitude }, proposedTourStartsAt: tour.requestedAt, proposedTourEndsAt: new Date(new Date(tour.requestedAt).getTime() + duration * 60_000).toISOString(), now: now.toISOString(), provider });
+        const urgent = isUrgentTour(tour.requestedAt, now.toISOString());
+        return { orderId: tour.id, recommendations: enrichBaselineRecommendations(baseline, orchestration.enrichment, urgent, urgent), ...(orchestration.providerWarning === undefined ? {} : { providerWarning: orchestration.providerWarning }) };
+      }));
     } catch (error) { throw new OwnerDispatchReadError(error); }
   }
   async listDailyOffEmployees(offDate: string): Promise<DailyOffProjection> {
@@ -137,10 +154,10 @@ export class PostgresOwnerDispatchReadModel {
     if (!employee.rows[0].is_active) return "EMPLOYEE_INACTIVE";
     return employee.rows[0].is_off ? "EMPLOYEE_OFF" : "EMPLOYEE_MISSING_REQUIRED_SKILL";
   }
-  async listEmployeeRoutingOrigins(): Promise<EmployeeRoutingOriginDto[]> {
+  async loadOwnerRoutingOrigins(): Promise<OwnerRoutingOriginLoad> {
     try {
       const result = await this.pool.query<{ employee_id: string; employee_name: string; is_active: boolean; latitude: number | null; longitude: number | null; label: string | null; updated_at: Date | null }>(`select employee_id, employee_name, is_active, latitude, longitude, label, updated_at from public.list_employee_routing_origins()`);
-      return result.rows.map(row => ({
+      const panelOrigins = result.rows.map(row => ({
         employeeId: row.employee_id,
         employeeName: row.employee_name,
         isActive: row.is_active,
@@ -149,6 +166,9 @@ export class PostgresOwnerDispatchReadModel {
         label: row.label,
         updatedAt: row.updated_at ? row.updated_at.toISOString() : null
       }));
+      const byEmployeeId = new Map<string, StoredRoutingOrigin>();
+      for (const row of result.rows) if (row.latitude !== null && row.longitude !== null) byEmployeeId.set(row.employee_id, { employeeId: row.employee_id, latitude: row.latitude, longitude: row.longitude });
+      return { panelOrigins, byEmployeeId };
     } catch (error) { throw new OwnerDispatchReadError(error); }
   }
 }

@@ -12,6 +12,7 @@ import { authenticateSession } from "@/server/owner-auth";
 import type { DailyOffProjection, EmployeeRoutingOriginDto } from "@/server/owner-dispatch-read-model";
 import type { CandidateRecommendation } from "@/domain/production-candidate-recommendations";
 import { businessDateInHoChiMinh, isValidBusinessDate } from "@/domain/business-date";
+import { prepareStoredOriginsForBaseline } from "@/server/owner-recommendation-travel-orchestrator";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,7 @@ export default async function OwnerDispatchPage({ searchParams }: { searchParams
   let projection: {
     tours: OwnerDispatchTour[];
     recommendations: CandidateRecommendation[][];
+    providerWarnings: Array<"NO_PROVIDER" | "TIMEOUT" | "RATE_LIMITED" | "MALFORMED_RESPONSE" | "TOTAL_FAILURE" | undefined>;
     mapModel: OwnerDispatchMapModel;
     dailyOff: DailyOffProjection;
     routingOrigins: EmployeeRoutingOriginDto[];
@@ -42,15 +44,16 @@ export default async function OwnerDispatchPage({ searchParams }: { searchParams
 
   try {
     const tours = await dependencies.readModel.listOwnerDispatchTours();
-    const [branches, dailyOff, recommendationsByOrder, routingOrigins] = await Promise.all([
+    const [branches, dailyOff, routingOriginLoad] = await Promise.all([
       dependencies.readModel.listOwnerDispatchBranches(),
       dependencies.readModel.listDailyOffEmployees(offDate),
-      dependencies.readModel.listCandidateRecommendationsForTours(tours),
-      dependencies.readModel.listEmployeeRoutingOrigins(),
+      dependencies.readModel.loadOwnerRoutingOrigins(),
     ]);
+    const recommendationsByOrder = await dependencies.readModel.listCandidateRecommendationsForTours(tours, new Date(), routingOriginLoad.byEmployeeId, dependencies.travelProvider);
+    prepareStoredOriginsForBaseline(recommendationsByOrder, routingOriginLoad.byEmployeeId);
     const recommendationMap = new Map(recommendationsByOrder.map((item) => [item.orderId, item.recommendations]));
     const recommendations = tours.map((tour) => recommendationMap.get(tour.id) ?? []);
-    projection = { tours, recommendations, mapModel: buildOwnerDispatchMapModel(tours, branches), dailyOff, routingOrigins };
+    projection = { tours, recommendations, providerWarnings: tours.map((tour) => recommendationMap.has(tour.id) ? recommendationsByOrder.find((item) => item.orderId === tour.id)?.providerWarning : undefined), mapModel: buildOwnerDispatchMapModel(tours, branches), dailyOff, routingOrigins: routingOriginLoad.panelOrigins };
   } catch {
     return (
       <main className="mx-auto w-full max-w-5xl p-6">
@@ -74,7 +77,7 @@ export default async function OwnerDispatchPage({ searchParams }: { searchParams
       </header>
       <OwnerDailyOffPanel selectedDate={offDate} {...projection.dailyOff} />
       <OwnerRoutingOriginPanel origins={projection.routingOrigins} />
-      <OwnerDispatchDashboard tours={projection.tours} recommendations={projection.recommendations} mapModel={projection.mapModel} />
+      <OwnerDispatchDashboard tours={projection.tours} recommendations={projection.recommendations} providerWarnings={projection.providerWarnings} mapModel={projection.mapModel} />
     </main>
   );
 }

@@ -44,4 +44,10 @@ describe("production architecture boundaries", () => {
       expect(panel).not.toContain("TravelTimeProvider");
     }
   });
+  it("keeps routing-origin access behind the named PostgreSQL function", async () => {
+    const source = await readFile(join(process.cwd(), "src", "server", "owner-dispatch-read-model.ts"), "utf8");
+    expect(source).toContain("public.list_employee_routing_origins()");
+    expect(source).not.toMatch(/from\s+public\.employee_routing_origins/i);
+    expect(source).not.toMatch(/join\s+public\.employee_routing_origins/i);
+  });
 });

@@ -12,6 +12,11 @@ export function OwnerCandidateRecommendations({ recommendations, selectedEmploye
               <span className="mt-1 block text-slate-700">{recommendation.category === "PRIMARY" ? "Đủ dữ liệu kỹ năng" : "Dự phòng · kỹ năng UNKNOWN · cần ghi đè"} · {recommendation.availabilityState} · {recommendation.workloadCount} tour/ngày</span>
               {recommendation.reasons.map((reason) => <span key={reason} className="mt-1 block text-slate-600">• {reason}</span>)}
               {recommendation.warnings.map((warning) => <span key={warning} className="mt-1 block text-amber-800">⚠ {warning}</span>)}
+              {recommendation.estimatedTravelMinutes !== undefined && <span className="mt-1 block text-slate-700">Estimated travel: {recommendation.estimatedTravelMinutes} minutes</span>}
+              {recommendation.candidateWarningCodes?.includes("TRAVEL_INFEASIBLE") && <span className="mt-1 block text-amber-800">Không đủ thời gian di chuyển trước giờ tour</span>}
+              {recommendation.candidateWarningCodes?.includes("MISSING_ORIGIN") && <span className="mt-1 block text-amber-800">Không có điểm xuất phát để ước tính di chuyển</span>}
+              {recommendation.candidateWarningCodes?.includes("MISSING_DESTINATION") && <span className="mt-1 block text-amber-800">Không có điểm đến để ước tính di chuyển</span>}
+              {recommendation.nextAssignmentWarning && <span className="mt-1 block text-amber-800">{recommendation.nextAssignmentWarning === "NEXT_ASSIGNMENT_TRAVEL_INFEASIBLE" ? "Không đủ thời gian di chuyển đến tour tiếp theo" : "Không thể ước tính di chuyển đến tour tiếp theo"}</span>}
             </button>
           ))}
         </div>
