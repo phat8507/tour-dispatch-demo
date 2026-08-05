@@ -1,13 +1,14 @@
 import type { Pool } from "pg";
-import type { DailyOffEmployee, OwnerDispatchBranch, OwnerDispatchTour } from "@/features/dispatch/owner-dispatch-view-model";
+import type { DailyOffEmployee, OwnerDispatchBranch, OwnerDispatchTour, EmployeeRoutingOriginDto } from "@/features/dispatch/owner-dispatch-view-model";
 import { recommendProductionCandidates } from "@/domain/production-candidate-recommendations";
 import type { CandidateRecommendation, ProductionRecommendationAssignment, ProductionRecommendationEmployee } from "@/domain/production-candidate-recommendations";
 
-export type { DailyOffEmployee, OwnerDispatchBranch, OwnerDispatchTour } from "@/features/dispatch/owner-dispatch-view-model";
+export type { DailyOffEmployee, OwnerDispatchBranch, OwnerDispatchTour, EmployeeRoutingOriginDto } from "@/features/dispatch/owner-dispatch-view-model";
 export type ActiveEmployeeCandidate = { id: string; name: string; homeBranchId: "CS1" | "CS2"; closingLevel: "STRONG" | "NORMAL" | "WEAK"; isActive: boolean; skills: Array<{ serviceId: string; serviceName: string; technicalLevel: "STRONG" | "NORMAL" | "WEAK" }> };
 export type EligibilityCause = "ORDER_NOT_FOUND" | "ORDER_NOT_ASSIGNABLE" | "EMPLOYEE_NOT_FOUND" | "EMPLOYEE_INACTIVE" | "EMPLOYEE_MISSING_REQUIRED_SKILL" | "EMPLOYEE_OFF" | "ELIGIBLE";
 export type DailyOffProjection = { employees: DailyOffEmployee[]; offCount: number; maxOff: 2 };
 export type OwnerTourRecommendations = { orderId: string; recommendations: CandidateRecommendation[] };
+
 export class OwnerDispatchReadError extends Error { constructor(cause?: unknown) { super("OWNER_DISPATCH_READ_FAILURE", { cause }); this.name = "OwnerDispatchReadError"; } }
 
 type RecommendationRow = {
@@ -135,5 +136,19 @@ export class PostgresOwnerDispatchReadModel {
     if (!employee.rows[0]) return "EMPLOYEE_NOT_FOUND";
     if (!employee.rows[0].is_active) return "EMPLOYEE_INACTIVE";
     return employee.rows[0].is_off ? "EMPLOYEE_OFF" : "EMPLOYEE_MISSING_REQUIRED_SKILL";
+  }
+  async listEmployeeRoutingOrigins(): Promise<EmployeeRoutingOriginDto[]> {
+    try {
+      const result = await this.pool.query<{ employee_id: string; employee_name: string; is_active: boolean; latitude: number | null; longitude: number | null; label: string | null; updated_at: Date | null }>(`select employee_id, employee_name, is_active, latitude, longitude, label, updated_at from public.list_employee_routing_origins()`);
+      return result.rows.map(row => ({
+        employeeId: row.employee_id,
+        employeeName: row.employee_name,
+        isActive: row.is_active,
+        latitude: row.latitude,
+        longitude: row.longitude,
+        label: row.label,
+        updatedAt: row.updated_at ? row.updated_at.toISOString() : null
+      }));
+    } catch (error) { throw new OwnerDispatchReadError(error); }
   }
 }

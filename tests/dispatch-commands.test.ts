@@ -2,7 +2,7 @@ import { scryptSync } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { DispatchPersistenceError } from "@/domain/dispatch-assignment-gateway";
 import type { DispatchAssignmentGateway, DurableAssignment } from "@/domain/dispatch-assignment-gateway";
-import { confirmDispatchAssignment, overrideDispatchAssignment } from "@/server/dispatch-commands";
+import { confirmDispatchAssignment, overrideDispatchAssignment, upsertEmployeeRoutingOrigin, removeEmployeeRoutingOrigin } from "@/server/dispatch-commands";
 import { createSessionToken, type OwnerConfig } from "@/server/owner-auth";
 
 const owner: OwnerConfig = { id: "owner", username: "ngoc", displayName: "Ngoc", passwordScrypt: `salt:${scryptSync("pw", "salt", 64).toString("hex")}`, sessionSecret: "safe-secret" };
@@ -26,5 +26,35 @@ describe("durable dispatch commands", () => {
     await expect(overrideDispatchAssignment({ ...input, reason: "Accept incomplete skill data" }, createSessionToken(owner), d)).resolves.toMatchObject({ ok: true });
     expect(d.eligibility.evaluateEligibility).toHaveBeenNthCalledWith(1, input.orderId, input.employeeId);
     expect(d.eligibility.evaluateEligibility).toHaveBeenNthCalledWith(2, input.orderId, input.employeeId, { allowUnknownSkill: true });
+  });
+
+  it("validates upsertEmployeeRoutingOrigin inputs and delegates to gateway", async () => {
+    const d = dependencies();
+    const gateway = { upsertRoutingOrigin: vi.fn().mockResolvedValue(undefined) };
+    const deps = { owner: d.owner, gateway };
+    const employeeId = "00000000-0000-4000-8000-000000000002";
+    // Auth
+    await expect(upsertEmployeeRoutingOrigin({ employeeId, latitude: 10, longitude: 100, label: null }, undefined, deps)).resolves.toMatchObject({ ok: false, error: "UNAUTHENTICATED" });
+    // Inputs
+    await expect(upsertEmployeeRoutingOrigin({ employeeId: "invalid", latitude: 10, longitude: 100, label: null }, createSessionToken(owner), deps)).resolves.toMatchObject({ ok: false, error: "INVALID_INPUT" });
+    await expect(upsertEmployeeRoutingOrigin({ employeeId, latitude: 91, longitude: 100, label: null }, createSessionToken(owner), deps)).resolves.toMatchObject({ ok: false, error: "INVALID_COORDINATES" });
+    // Success
+    await expect(upsertEmployeeRoutingOrigin({ employeeId, latitude: 10, longitude: 100, label: "Home" }, createSessionToken(owner), deps)).resolves.toMatchObject({ ok: true });
+    expect(gateway.upsertRoutingOrigin).toHaveBeenCalledWith(employeeId, 10, 100, "Home");
+    // Persistence error mapping
+    gateway.upsertRoutingOrigin.mockRejectedValueOnce(new DispatchPersistenceError("EMPLOYEE_NOT_FOUND"));
+    await expect(upsertEmployeeRoutingOrigin({ employeeId, latitude: 10, longitude: 100, label: null }, createSessionToken(owner), deps)).resolves.toMatchObject({ ok: false, error: "EMPLOYEE_NOT_FOUND" });
+  });
+
+  it("validates removeEmployeeRoutingOrigin inputs and delegates to gateway", async () => {
+    const d = dependencies();
+    const gateway = { removeRoutingOrigin: vi.fn().mockResolvedValue(undefined) };
+    const deps = { owner: d.owner, gateway };
+    const employeeId = "00000000-0000-4000-8000-000000000002";
+    // Inputs
+    await expect(removeEmployeeRoutingOrigin({ employeeId: "invalid" }, createSessionToken(owner), deps)).resolves.toMatchObject({ ok: false, error: "INVALID_INPUT" });
+    // Success
+    await expect(removeEmployeeRoutingOrigin({ employeeId }, createSessionToken(owner), deps)).resolves.toMatchObject({ ok: true });
+    expect(gateway.removeRoutingOrigin).toHaveBeenCalledWith(employeeId);
   });
 });

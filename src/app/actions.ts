@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createDispatchServerDependencies } from "@/server/dispatch-composition";
 import { createSessionToken, verifyOwnerPassword } from "@/server/owner-auth";
-import { confirmDispatchAssignment, markEmployeeOff, overrideDispatchAssignment, unmarkEmployeeOff } from "@/server/dispatch-commands";
+import { confirmDispatchAssignment, markEmployeeOff, overrideDispatchAssignment, unmarkEmployeeOff, upsertEmployeeRoutingOrigin, removeEmployeeRoutingOrigin } from "@/server/dispatch-commands";
 
 export type OwnerMutationState = { message: string; ok: boolean };
 function field(formData: FormData, name: string): string { const value = formData.get(name); return typeof value === "string" ? value : ""; }
@@ -42,6 +42,34 @@ export async function unmarkOwnerEmployeeOff(_: OwnerMutationState, formData: Fo
   const dependencies = createDispatchServerDependencies(); const token = (await cookies()).get("dispatch_session")?.value;
   const result = await unmarkEmployeeOff(input, token, dependencies);
   if (result.ok) revalidatePath("/owner"); return actionState(result);
+}
+
+export async function upsertOwnerRoutingOrigin(_: OwnerMutationState, formData: FormData): Promise<OwnerMutationState> {
+  const employeeId = field(formData, "employeeId");
+  const latStr = field(formData, "latitude");
+  const lngStr = field(formData, "longitude");
+  const label = field(formData, "label");
+  const latitude = parseFloat(latStr);
+  const longitude = parseFloat(lngStr);
+  if (!validUuid(employeeId)) return { ok: false, message: "Thông tin nhân viên không hợp lệ." };
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return { ok: false, message: "Toạ độ không hợp lệ." };
+
+  const dependencies = createDispatchServerDependencies();
+  const token = (await cookies()).get("dispatch_session")?.value;
+  const result = await upsertEmployeeRoutingOrigin({ employeeId, latitude, longitude, label: label || null }, token, dependencies);
+  if (result.ok) revalidatePath("/owner");
+  return actionState(result);
+}
+
+export async function removeOwnerRoutingOrigin(_: OwnerMutationState, formData: FormData): Promise<OwnerMutationState> {
+  const employeeId = field(formData, "employeeId");
+  if (!validUuid(employeeId)) return { ok: false, message: "Thông tin nhân viên không hợp lệ." };
+
+  const dependencies = createDispatchServerDependencies();
+  const token = (await cookies()).get("dispatch_session")?.value;
+  const result = await removeEmployeeRoutingOrigin({ employeeId }, token, dependencies);
+  if (result.ok) revalidatePath("/owner");
+  return actionState(result);
 }
 
 export async function login(formData: FormData): Promise<void> {

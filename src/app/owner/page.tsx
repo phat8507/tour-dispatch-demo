@@ -2,13 +2,14 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { logout } from "../actions";
 import { OwnerDailyOffPanel } from "./OwnerDailyOffPanel";
+import { OwnerRoutingOriginPanel } from "./OwnerRoutingOriginPanel";
 import { OwnerDispatchDashboard } from "@/features/dispatch/OwnerDispatchDashboard";
 import { buildOwnerDispatchMapModel } from "@/features/dispatch/owner-dispatch-map-model";
 import type { OwnerDispatchMapModel } from "@/features/dispatch/owner-dispatch-map-model";
 import type { OwnerDispatchTour } from "@/features/dispatch/owner-dispatch-view-model";
 import { createDispatchServerDependencies } from "@/server/dispatch-composition";
 import { authenticateSession } from "@/server/owner-auth";
-import type { DailyOffProjection } from "@/server/owner-dispatch-read-model";
+import type { DailyOffProjection, EmployeeRoutingOriginDto } from "@/server/owner-dispatch-read-model";
 import type { CandidateRecommendation } from "@/domain/production-candidate-recommendations";
 import { businessDateInHoChiMinh, isValidBusinessDate } from "@/domain/business-date";
 
@@ -31,6 +32,7 @@ export default async function OwnerDispatchPage({ searchParams }: { searchParams
     recommendations: CandidateRecommendation[][];
     mapModel: OwnerDispatchMapModel;
     dailyOff: DailyOffProjection;
+    routingOrigins: EmployeeRoutingOriginDto[];
   };
   try {
     authenticateSession(token, dependencies.owner);
@@ -40,14 +42,15 @@ export default async function OwnerDispatchPage({ searchParams }: { searchParams
 
   try {
     const tours = await dependencies.readModel.listOwnerDispatchTours();
-    const [branches, dailyOff, recommendationsByOrder] = await Promise.all([
+    const [branches, dailyOff, recommendationsByOrder, routingOrigins] = await Promise.all([
       dependencies.readModel.listOwnerDispatchBranches(),
       dependencies.readModel.listDailyOffEmployees(offDate),
       dependencies.readModel.listCandidateRecommendationsForTours(tours),
+      dependencies.readModel.listEmployeeRoutingOrigins(),
     ]);
     const recommendationMap = new Map(recommendationsByOrder.map((item) => [item.orderId, item.recommendations]));
     const recommendations = tours.map((tour) => recommendationMap.get(tour.id) ?? []);
-    projection = { tours, recommendations, mapModel: buildOwnerDispatchMapModel(tours, branches), dailyOff };
+    projection = { tours, recommendations, mapModel: buildOwnerDispatchMapModel(tours, branches), dailyOff, routingOrigins };
   } catch {
     return (
       <main className="mx-auto w-full max-w-5xl p-6">
@@ -70,6 +73,7 @@ export default async function OwnerDispatchPage({ searchParams }: { searchParams
         </form>
       </header>
       <OwnerDailyOffPanel selectedDate={offDate} {...projection.dailyOff} />
+      <OwnerRoutingOriginPanel origins={projection.routingOrigins} />
       <OwnerDispatchDashboard tours={projection.tours} recommendations={projection.recommendations} mapModel={projection.mapModel} />
     </main>
   );
