@@ -15,6 +15,10 @@ export type OwnerDispatchDashboardProps = {
   mapModel: OwnerDispatchMapModel;
 };
 
+function statusLabel(value: string): string {
+  return ({ PENDING: "Chờ phân công", ASSIGNED: "Đã phân công", CONFIRMED: "Đã xác nhận", AVAILABLE: "Sẵn sàng", BUSY: "Đang có tour", NEAR_COMPLETION: "Sắp hoàn thành tour", UNKNOWN: "Chưa đủ thông tin", UNAVAILABLE: "Chưa xác định thời gian di chuyển" }[value] ?? value);
+}
+
 export function OwnerDispatchDashboard({
   tours,
   recommendations,
@@ -33,7 +37,7 @@ export function OwnerDispatchDashboard({
 
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(20rem,2fr)]">
-      <section aria-label="Bản đồ điều phối" className="min-w-0">
+      <section aria-label="Bản đồ điều phối" className="order-2 min-w-0">
         {mapModel.warnings.length > 0 && (
           <div
             role="alert"
@@ -54,7 +58,7 @@ export function OwnerDispatchDashboard({
         />
       </section>
 
-      <section aria-label="Danh sách tour" className="min-w-0">
+      <section aria-label="Danh sách tour" className="order-1 min-w-0">
         {tours.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
             Chưa có tour cần điều phối.
@@ -83,7 +87,7 @@ export function OwnerDispatchDashboard({
                       {tour.customerName}
                     </span>
                     <span className="mt-1 block text-sm text-slate-600">
-                      {tour.requestedAt} | {tour.location.name} | {tour.status}
+                      {tour.requestedAt} | {tour.location.name} | {statusLabel(tour.status)}
                     </span>
                     <span className="mt-1 block text-sm text-slate-600">
                       Dịch vụ: {tour.services.map((service) => service.name).join(", ") || "Không có dịch vụ"}
@@ -94,7 +98,7 @@ export function OwnerDispatchDashboard({
                         : tour.assignments
                             .map(
                               (assignment) =>
-                                `${assignment.employeeName} (${assignment.status})${
+                                `${assignment.employeeName} (${statusLabel(assignment.status)})${
                                   assignment.isOverride
                                     ? ` | Ghi đè: ${assignment.overrideReason}`
                                     : ""
