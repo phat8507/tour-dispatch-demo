@@ -1,10 +1,11 @@
 "use server";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createDispatchServerDependencies } from "@/server/dispatch-composition";
 import { createSessionToken, verifyOwnerPassword } from "@/server/owner-auth";
 import { confirmDispatchAssignment, markEmployeeOff, overrideDispatchAssignment, unmarkEmployeeOff, upsertEmployeeRoutingOrigin, removeEmployeeRoutingOrigin } from "@/server/dispatch-commands";
+import { ownerLoginIp } from "@/server/owner-login-rate-limiter";
 
 export type OwnerMutationState = { message: string; ok: boolean };
 function field(formData: FormData, name: string): string { const value = formData.get(name); return typeof value === "string" ? value : ""; }
@@ -75,7 +76,15 @@ export async function removeOwnerRoutingOrigin(_: OwnerMutationState, formData: 
 export async function login(formData: FormData): Promise<void> {
   const dependencies = createDispatchServerDependencies();
   const username = formData.get("username"); const password = formData.get("password");
-  if (typeof username !== "string" || typeof password !== "string" || username !== dependencies.owner.username || !await verifyOwnerPassword(password, dependencies.owner)) redirect("/login?error=invalid");
+  const ip = ownerLoginIp(await headers());
+  if (await dependencies.loginRateLimiter.isLocked(ip)) redirect("/login?error=invalid");
+  const passwordMatches = await verifyOwnerPassword(typeof password === "string" ? password : "", dependencies.owner);
+  const valid = typeof username === "string" && typeof password === "string" && username === dependencies.owner.username && passwordMatches;
+  if (!valid) {
+    await dependencies.loginRateLimiter.recordFailure(ip);
+    redirect("/login?error=invalid");
+  }
+  await dependencies.loginRateLimiter.reset(ip);
   (await cookies()).set("dispatch_session", createSessionToken(dependencies.owner), { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: 8 * 60 * 60, path: "/" });
   redirect("/owner");
 }

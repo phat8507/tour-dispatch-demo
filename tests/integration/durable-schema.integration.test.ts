@@ -26,7 +26,7 @@ const laterEndsAt = new Date("2030-01-01T10:00:00.000Z");
 function id(suffix: string): string { return `10000000-0000-0000-0000-${suffix.padStart(12, "0")}`; }
 
 async function seed(): Promise<void> {
-  await admin.query("truncate employee_daily_off, assignments, order_services, orders, employee_service_skills, services, employees, locations cascade");
+  await admin.query("truncate owner_login_rate_limits, employee_daily_off, assignments, order_services, orders, employee_service_skills, services, employees, locations cascade");
   await admin.query("insert into locations (id, name, address, latitude, longitude, location_type) values ($1, 'Customer', 'Address', 10, 106, 'CUSTOMER')", [locationId]);
   await admin.query("insert into employees (id, name, home_branch_id, closing_level) values ($1, 'One', 'CS1', 'NORMAL'), ($2, 'Two', 'CS2', 'NORMAL'), ($3, 'Three', 'CS1', 'NORMAL'), ($4, 'Four', 'CS2', 'NORMAL')", [employeeOneId, employeeTwoId, employeeThreeId, employeeFourId]);
   await admin.query("insert into orders (id, customer_name, location_id, requested_at, order_type, urgency, status) values ($1, 'First', $5, $6, 'NEW_TOUR', 'PREBOOKED', 'PENDING'), ($2, 'Second', $5, $6, 'NEW_TOUR', 'PREBOOKED', 'PENDING'), ($3, 'Third', $5, $6, 'NEW_TOUR', 'PREBOOKED', 'PENDING'), ($4, 'Fourth', $5, $6, 'NEW_TOUR', 'PREBOOKED', 'PENDING')", [orderOneId, orderTwoId, orderThreeId, orderFourId, locationId, startsAt]);
@@ -59,7 +59,29 @@ describe("durable dispatch schema", () => {
   });
   it("has all migrations recorded and is safe to run repeatedly", async () => {
     const result = await admin.query<{ filename: string }>("select filename from dispatch_schema_migrations order by filename");
-    expect(result.rows.map((row) => row.filename)).toEqual(["001_durable_dispatch_schema.sql", "002_assignment_invariant_functions.sql", "003_dispatch_runtime_privileges.sql", "004_dispatch_schema_ownership.sql", "005_harden_named_dispatch_functions.sql", "006_atomic_versioned_dispatch_commands.sql", "007_daily_employee_off.sql", "008_employee_routing_origins.sql"]);
+    expect(result.rows.map((row) => row.filename)).toEqual(["001_durable_dispatch_schema.sql", "002_assignment_invariant_functions.sql", "003_dispatch_runtime_privileges.sql", "004_dispatch_schema_ownership.sql", "005_harden_named_dispatch_functions.sql", "006_atomic_versioned_dispatch_commands.sql", "007_daily_employee_off.sql", "008_employee_routing_origins.sql", "009_owner_login_rate_limit.sql"]);
+  });
+
+  it("allows five failed owner logins in a window then locks the sixth", async () => {
+    const now = "2030-01-01T00:00:00.000Z";
+    for (let attempt = 0; attempt < 5; attempt += 1) await expect(runtimePool.query("select public.record_owner_login_failure($1::inet, $2::timestamptz) as locked", ["198.51.100.10", now])).resolves.toMatchObject({ rows: [{ locked: false }] });
+    await expect(runtimePool.query("select public.record_owner_login_failure($1::inet, $2::timestamptz) as locked", ["198.51.100.10", now])).resolves.toMatchObject({ rows: [{ locked: true }] });
+  });
+
+  it("expires the lock window, resets after success, and keeps IPs independent", async () => {
+    const now = "2030-01-01T00:00:00.000Z";
+    for (let attempt = 0; attempt < 6; attempt += 1) await runtimePool.query("select public.record_owner_login_failure($1::inet, $2::timestamptz)", ["198.51.100.11", now]);
+    await expect(runtimePool.query("select public.owner_login_is_locked($1::inet, $2::timestamptz) as locked", ["198.51.100.11", now])).resolves.toMatchObject({ rows: [{ locked: true }] });
+    await expect(runtimePool.query("select public.record_owner_login_failure($1::inet, $2::timestamptz) as locked", ["198.51.100.11", "2030-01-01T00:16:00.000Z"])).resolves.toMatchObject({ rows: [{ locked: false }] });
+    await runtimePool.query("select public.reset_owner_login_failures($1::inet)", ["198.51.100.11"]);
+    await expect(admin.query("select count(*)::int as count from owner_login_rate_limits where ip = $1::inet", ["198.51.100.11"])).resolves.toMatchObject({ rows: [{ count: 0 }] });
+    await expect(runtimePool.query("select public.record_owner_login_failure($1::inet, $2::timestamptz) as locked", ["198.51.100.12", now])).resolves.toMatchObject({ rows: [{ locked: false }] });
+  });
+
+  it("serializes concurrent failures so no more than five are accepted", async () => {
+    const results = await Promise.all(Array.from({ length: 12 }, () => runtimePool.query<{ locked: boolean }>("select public.record_owner_login_failure($1::inet, $2::timestamptz) as locked", ["198.51.100.13", "2030-01-01T00:00:00.000Z"])));
+    expect(results.filter((result) => !result.rows[0].locked)).toHaveLength(5);
+    await expect(admin.query<{ failed_attempts: number; locked: boolean }>("select failed_attempts, locked_until is not null as locked from owner_login_rate_limits where ip = $1::inet", ["198.51.100.13"])).resolves.toMatchObject({ rows: [{ failed_attempts: 5, locked: true }] });
   });
 
   it("provides atomic versioned confirm and override commands without granting runtime DML", async () => {

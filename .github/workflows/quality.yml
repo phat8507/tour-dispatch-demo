@@ -38,9 +38,21 @@ jobs:
           psql -h localhost -v ON_ERROR_STOP=1 -U postgres -d tour_dispatch_test -c "CREATE ROLE tour_dispatch_test LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD 'ci_only_runtime_password';"
         env:
           PGPASSWORD: ci_only_postgres_password
-      - run: npm run db:migrate:test
+      - run: npm run db:migrate:production
         env:
           MIGRATION_DATABASE_URL: postgresql://postgres:ci_only_postgres_password@localhost:5432/tour_dispatch_test
+          EXPECTED_DATABASE_NAME: tour_dispatch_test
+          CONFIRM_PRODUCTION_MIGRATION: YES
+      - run: npm run db:migrate:production
+        env:
+          MIGRATION_DATABASE_URL: postgresql://postgres:ci_only_postgres_password@localhost:5432/tour_dispatch_test
+          EXPECTED_DATABASE_NAME: tour_dispatch_test
+          CONFIRM_PRODUCTION_MIGRATION: YES
+      - run: |
+          test "$(psql -h localhost -U postgres -d tour_dispatch_test -Atc "select count(*) from dispatch_schema_migrations")" = "$(find db/migrations -name '*.sql' | wc -l)"
+          test "$(psql -h localhost -U postgres -d tour_dispatch_test -Atc "select count(*) from (select filename from dispatch_schema_migrations group by filename having count(*) <> 1) duplicates")" = "0"
+        env:
+          PGPASSWORD: ci_only_postgres_password
       - run: npm run quality
         env:
           MIGRATION_DATABASE_URL: postgresql://postgres:ci_only_postgres_password@localhost:5432/tour_dispatch_test
