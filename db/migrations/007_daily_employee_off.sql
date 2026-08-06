@@ -136,5 +136,5 @@ REVOKE ALL ON FUNCTION public.dispatch_check_daily_off_insert() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.dispatch_check_assignment_employee_off() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.mark_employee_off(uuid, date) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.unmark_employee_off(uuid, date) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.mark_employee_off(uuid, date) TO dispatch_runtime, tour_dispatch_test;
-GRANT EXECUTE ON FUNCTION public.unmark_employee_off(uuid, date) TO dispatch_runtime, tour_dispatch_test;
+GRANT EXECUTE ON FUNCTION public.mark_employee_off(uuid, date) TO dispatch_runtime;
+GRANT EXECUTE ON FUNCTION public.unmark_employee_off(uuid, date) TO dispatch_runtime;

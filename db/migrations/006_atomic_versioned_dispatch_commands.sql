@@ -69,5 +69,5 @@ ALTER FUNCTION public.confirm_assignment_with_version(uuid, uuid, uuid, timestam
 ALTER FUNCTION public.override_assignment_with_version(uuid, uuid, uuid, timestamptz, timestamptz, text, text) OWNER TO CURRENT_USER;
 REVOKE ALL ON FUNCTION public.confirm_assignment_with_version(uuid, uuid, uuid, timestamptz, timestamptz, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.override_assignment_with_version(uuid, uuid, uuid, timestamptz, timestamptz, text, text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.confirm_assignment_with_version(uuid, uuid, uuid, timestamptz, timestamptz, text) TO dispatch_runtime, tour_dispatch_test;
-GRANT EXECUTE ON FUNCTION public.override_assignment_with_version(uuid, uuid, uuid, timestamptz, timestamptz, text, text) TO dispatch_runtime, tour_dispatch_test;
+GRANT EXECUTE ON FUNCTION public.confirm_assignment_with_version(uuid, uuid, uuid, timestamptz, timestamptz, text) TO dispatch_runtime;
+GRANT EXECUTE ON FUNCTION public.override_assignment_with_version(uuid, uuid, uuid, timestamptz, timestamptz, text, text) TO dispatch_runtime;

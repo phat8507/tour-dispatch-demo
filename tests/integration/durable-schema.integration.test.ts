@@ -40,6 +40,9 @@ beforeEach(seed);
 afterAll(async () => { await runtimePool.end(); await admin.end(); });
 
 describe("durable dispatch schema", () => {
+  it("grants the test runtime role dispatch_runtime membership through migration 003", async () => {
+    await expect(admin.query("select pg_has_role('tour_dispatch_test', 'dispatch_runtime', 'member') as member")).resolves.toMatchObject({ rows: [{ member: true }] });
+  });
   it("projects primary and UNKNOWN fallback recommendations from one durable bulk load", async () => {
     const serviceId = id("301");
     await admin.query("insert into services (id, name, default_duration_minutes, refill_duration_minutes) values ($1, 'Recommendation service', 60, 30)", [serviceId]);
