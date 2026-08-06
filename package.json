@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:unit": "vitest run --exclude tests/integration/**",
     "db:migrate:test": "node scripts/migrate-test-db.mjs",
+    "db:migrate:production": "node scripts/migrate-production-db.mjs",
     "test:integration": "vitest run tests/integration",
     "smoke:owner": "node scripts/smoke-owner-boundary.mjs",
     "quality": "npm run lint && npm run typecheck && npm run test:unit && npm run test:integration && npm run build"
