@@ -8,7 +8,7 @@ const OwnerDispatchLeafletMap = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-[34rem] items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-sm text-slate-600">
+      <div className="flex h-[60dvh] items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-sm text-slate-600 lg:h-[calc(100dvh-14rem)] lg:min-h-[34rem]">
         Đang tải bản đồ...
       </div>
     ),

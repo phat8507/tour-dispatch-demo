@@ -44,7 +44,7 @@ export function OwnerDispatchDashboard({
             className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
           >
             <p className="font-semibold">Dữ liệu bản đồ chưa đầy đủ</p>
-            <ul className="mt-1 list-disc pl-5">
+            <ul className="mt-1 list-disc space-y-0.5 pl-5">
               {mapModel.warnings.map((warning) => (
                 <li key={warning}>{warning}</li>
               ))}
@@ -59,9 +59,11 @@ export function OwnerDispatchDashboard({
       </section>
 
       <section aria-label="Danh sách tour" className="order-1 min-w-0">
+        <h2 className="mb-3 text-sm font-semibold tracking-wide text-slate-500 uppercase">Tour cần điều phối</h2>
         {tours.length === 0 ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
-            Chưa có tour cần điều phối.
+          <div className="rounded-xl border border-slate-200 bg-white p-6 text-center">
+            <p className="font-medium text-slate-900">Chưa có tour cần điều phối.</p>
+            <p className="mt-1 text-sm text-slate-600">Danh sách sẽ hiện khi có tour mới trong ngày đã chọn.</p>
           </div>
         ) : (
           <div className="max-h-[72dvh] space-y-3 overflow-y-auto pr-1">
@@ -108,7 +110,7 @@ export function OwnerDispatchDashboard({
                     </span>
                   </button>
                   <OwnerCandidateRecommendations recommendations={recommendations[index] ?? []} selectedEmployeeId={selectedEmployees[tour.id]} onSelect={(employeeId) => setSelectedEmployees((current) => ({ ...current, [tour.id]: employeeId }))} />
-                  {providerWarnings?.[index] && <p role="alert" className="mt-2 text-xs text-amber-800">Không thể đánh giá thời gian di chuyển cho tour này.</p>}
+                  {providerWarnings?.[index] && <p role="alert" className="mt-2 text-xs font-medium text-amber-800">Không thể đánh giá thời gian di chuyển cho tour này.</p>}
                   <OwnerDispatchForm
                     orderId={tour.id}
                     orderVersion={tour.orderVersion}

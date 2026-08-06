@@ -8,6 +8,14 @@ import { OwnerDailyOffPanel } from "@/app/owner/OwnerDailyOffPanel";
 describe("owner daily OFF panel", () => {
   afterEach(cleanup);
 
+  it("stays collapsed by default", () => {
+    render(<OwnerDailyOffPanel selectedDate="2030-01-01" employees={[
+      { id: "e1", name: "Employee One", isActive: true, isOff: true },
+    ]} offCount={1} maxOff={2} />);
+    const details = screen.getByText("Quản lý nhân viên nghỉ").closest("details");
+    expect(details?.open).toBe(false);
+  });
+
   it("shows the selected date, canonical count, and ON/OFF state", () => {
     render(<OwnerDailyOffPanel selectedDate="2030-01-01" employees={[
       { id: "e1", name: "Employee One", isActive: true, isOff: true },

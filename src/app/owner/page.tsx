@@ -56,33 +56,41 @@ export default async function OwnerDispatchPage({ searchParams }: { searchParams
     projection = { tours, recommendations, providerWarnings: tours.map((tour) => recommendationMap.has(tour.id) ? recommendationsByOrder.find((item) => item.orderId === tour.id)?.providerWarning : undefined), mapModel: buildOwnerDispatchMapModel(tours, branches), dailyOff, routingOrigins: routingOriginLoad.panelOrigins };
   } catch {
     return (
-      <main className="mx-auto w-full max-w-5xl p-6">
-        <p role="alert">Không thể tải dữ liệu điều phối. Vui lòng thử lại.</p>
+      <main className="mx-auto flex min-h-[100dvh] w-full max-w-5xl items-center justify-center p-6">
+        <div role="alert" className="w-full max-w-md rounded-xl border border-red-200 bg-red-50 p-5 text-center">
+          <p className="font-semibold text-red-800">Không thể tải dữ liệu điều phối.</p>
+          <p className="mt-1 text-sm text-red-700">Vui lòng thử lại.</p>
+        </div>
       </main>
     );
   }
 
   return (
     <main className="mx-auto min-h-[100dvh] w-full max-w-[1400px] bg-slate-50 p-4 sm:p-6">
-      <header className="mb-5 flex items-center justify-between gap-4">
+      <header className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-950">Điều phối tour</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Điều phối tour</h1>
           <p className="mt-1 text-sm text-slate-600">Chọn nhân viên phù hợp và xác nhận phân công tour.</p>
-          <p className="mt-1 text-sm text-slate-600">Các phân công đã xác nhận được lưu tự động.</p>
+          <p className="text-sm text-slate-600">Các phân công đã xác nhận được lưu tự động.</p>
         </div>
         <form action={logout}>
-          <button className="whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+          <button className="min-h-11 whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
             Đăng xuất
           </button>
         </form>
       </header>
-      <form method="get" action="/owner" className="mb-5 flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-white p-4">
-        <label className="text-sm font-medium text-slate-700">Ngày điều phối<input className="ml-2 rounded-lg border border-slate-300 bg-white px-2 py-1.5" type="date" name="offDate" defaultValue={offDate} /></label>
-        <button type="submit" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium">Xem ngày</button>
+      <form method="get" action="/owner" className="mb-5 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4">
+        <label className="text-sm font-medium text-slate-700">
+          <span className="block">Ngày điều phối</span>
+          <input className="mt-1.5 min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-950 outline-none transition-colors hover:border-slate-400 focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/40" type="date" name="offDate" defaultValue={offDate} />
+        </label>
+        <button type="submit" className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">Xem ngày</button>
       </form>
       <OwnerDispatchDashboard tours={projection.tours} recommendations={projection.recommendations} providerWarnings={projection.providerWarnings} mapModel={projection.mapModel} />
-      <OwnerDailyOffPanel selectedDate={offDate} {...projection.dailyOff} />
-      <OwnerRoutingOriginPanel origins={projection.routingOrigins} />
+      <div className="mt-5 space-y-3">
+        <OwnerDailyOffPanel selectedDate={offDate} {...projection.dailyOff} />
+        <OwnerRoutingOriginPanel origins={projection.routingOrigins} />
+      </div>
     </main>
   );
 }

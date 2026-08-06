@@ -95,4 +95,11 @@ describe("owner dispatch Leaflet map", () => {
     expect(screen.getByRole("status").textContent).toContain("Danh sách tour và dữ liệu phân công vẫn khả dụng");
     expect(screen.getByRole("button", { name: "Khach da phan, ASSIGNED" })).toBeTruthy();
   });
+
+  it("shows a legend covering all marker states", () => {
+    render(<OwnerDispatchLeafletMap model={model} selectedTourId={null} onSelectTour={vi.fn()} />);
+    for (const text of ["Cơ sở", "Đã phân", "Chưa phân", "Chỉ lịch sử"]) {
+      expect(screen.getByText(text)).toBeTruthy();
+    }
+  });
 });
