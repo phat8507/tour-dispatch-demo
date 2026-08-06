@@ -53,7 +53,7 @@ $$;
 
 ALTER FUNCTION public.upsert_employee_routing_origin(uuid, double precision, double precision, text) OWNER TO CURRENT_USER;
 REVOKE ALL ON FUNCTION public.upsert_employee_routing_origin(uuid, double precision, double precision, text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.upsert_employee_routing_origin(uuid, double precision, double precision, text) TO dispatch_runtime, tour_dispatch_test;
+GRANT EXECUTE ON FUNCTION public.upsert_employee_routing_origin(uuid, double precision, double precision, text) TO dispatch_runtime;
 
 CREATE FUNCTION public.remove_employee_routing_origin(p_employee_id uuid) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp
@@ -66,7 +66,7 @@ $$;
 
 ALTER FUNCTION public.remove_employee_routing_origin(uuid) OWNER TO CURRENT_USER;
 REVOKE ALL ON FUNCTION public.remove_employee_routing_origin(uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.remove_employee_routing_origin(uuid) TO dispatch_runtime, tour_dispatch_test;
+GRANT EXECUTE ON FUNCTION public.remove_employee_routing_origin(uuid) TO dispatch_runtime;
 
 CREATE FUNCTION public.list_employee_routing_origins()
 RETURNS TABLE (
@@ -98,4 +98,4 @@ $$;
 
 ALTER FUNCTION public.list_employee_routing_origins() OWNER TO CURRENT_USER;
 REVOKE ALL ON FUNCTION public.list_employee_routing_origins() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.list_employee_routing_origins() TO dispatch_runtime, tour_dispatch_test;
+GRANT EXECUTE ON FUNCTION public.list_employee_routing_origins() TO dispatch_runtime;

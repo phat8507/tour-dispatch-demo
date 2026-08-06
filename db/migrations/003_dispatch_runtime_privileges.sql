@@ -3,7 +3,17 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
-GRANT dispatch_runtime TO tour_dispatch_test;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_roles
+    WHERE rolname = 'tour_dispatch_test'
+  ) THEN
+    EXECUTE 'GRANT dispatch_runtime TO tour_dispatch_test';
+  END IF;
+END
+$$;
 REVOKE ALL ON assignments FROM dispatch_runtime;
 GRANT SELECT ON locations, employees, services, employee_service_skills, orders, order_services, assignments TO dispatch_runtime;
 REVOKE ALL ON FUNCTION dispatch_confirm_assignment(uuid, uuid, uuid, timestamptz, timestamptz) FROM PUBLIC;
