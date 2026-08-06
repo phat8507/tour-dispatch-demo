@@ -11,12 +11,14 @@ import type { CandidateRecommendation } from "@/domain/production-candidate-reco
 export type OwnerDispatchDashboardProps = {
   tours: OwnerDispatchTour[];
   recommendations: CandidateRecommendation[][];
+  providerWarnings?: Array<"NO_PROVIDER" | "TIMEOUT" | "RATE_LIMITED" | "MALFORMED_RESPONSE" | "TOTAL_FAILURE" | undefined>;
   mapModel: OwnerDispatchMapModel;
 };
 
 export function OwnerDispatchDashboard({
   tours,
   recommendations,
+  providerWarnings,
   mapModel,
 }: OwnerDispatchDashboardProps) {
   const [selectedTourId, setSelectedTourId] = useState<string | null>(null);
@@ -102,6 +104,7 @@ export function OwnerDispatchDashboard({
                     </span>
                   </button>
                   <OwnerCandidateRecommendations recommendations={recommendations[index] ?? []} selectedEmployeeId={selectedEmployees[tour.id]} onSelect={(employeeId) => setSelectedEmployees((current) => ({ ...current, [tour.id]: employeeId }))} />
+                  {providerWarnings?.[index] && <p role="alert" className="mt-2 text-xs text-amber-800">Không thể đánh giá thời gian di chuyển cho tour này.</p>}
                   <OwnerDispatchForm
                     orderId={tour.id}
                     orderVersion={tour.orderVersion}

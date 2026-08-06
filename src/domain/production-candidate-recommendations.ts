@@ -48,6 +48,11 @@ export type CandidateRecommendation = {
   reasons: string[];
   warnings: string[];
   travelEvaluation: TravelEvaluation;
+  estimatedTravelMinutes?: number;
+  travelFeasibility?: "FEASIBLE" | "INFEASIBLE" | "UNAVAILABLE";
+  nextAssignmentWarning?: "NEXT_ASSIGNMENT_TRAVEL_UNAVAILABLE" | "NEXT_ASSIGNMENT_TRAVEL_INFEASIBLE";
+  travelStatus?: "NOT_REQUESTED" | "ESTIMATED_FEASIBLE" | "ESTIMATED_INFEASIBLE" | "UNAVAILABLE";
+  candidateWarningCodes?: Array<"MISSING_ORIGIN" | "MISSING_DESTINATION" | "TRAVEL_UNAVAILABLE" | "TRAVEL_INFEASIBLE">;
 };
 
 export type ProductionRecommendationInput = {
@@ -55,6 +60,12 @@ export type ProductionRecommendationInput = {
   employees: ProductionRecommendationEmployee[];
   now: string;
 };
+
+export function isUrgentTour(proposedTourStartsAt: string, now: string): boolean {
+  const start = new Date(proposedTourStartsAt).getTime();
+  const current = new Date(now).getTime();
+  return Number.isFinite(start) && Number.isFinite(current) && start >= current && start - current <= 30 * 60_000;
+}
 
 const ACTIVE_STATUSES = new Set<ProductionAssignmentStatus>(["SCHEDULED", "IN_PROGRESS", "DELAYED"]);
 const availabilityPriority: Record<ProductionAvailabilityState, number> = { AVAILABLE_NOW: 0, NEAR_COMPLETION: 1, SCHEDULED_LATER: 2, BUSY: 3, OFF: 4, INACTIVE: 5 };
@@ -173,4 +184,32 @@ export function recommendProductionCandidates(input: ProductionRecommendationInp
     void technicalMinimum; void technicalTotal;
     return { ...candidate, rank: index + 1 };
   });
+}
+
+export type CandidateTravelEnrichment = Readonly<{ employeeId: string; durationSeconds?: number; feasibility: "FEASIBLE" | "INFEASIBLE" | "UNAVAILABLE"; candidateWarningCodes?: CandidateRecommendation["candidateWarningCodes"]; nextAssignmentWarning?: CandidateRecommendation["nextAssignmentWarning"] }>;
+
+export function enrichBaselineRecommendations(baseline: readonly CandidateRecommendation[], enrichment: readonly CandidateTravelEnrichment[], urgent: boolean, reorder = true): CandidateRecommendation[] {
+  const byEmployee = new Map(enrichment.map((item) => [item.employeeId, item]));
+  const enriched: Array<{ candidate: CandidateRecommendation; baselineIndex: number; travel: Pick<CandidateTravelEnrichment, "durationSeconds" | "feasibility"> }> = baseline.map((candidate, baselineIndex) => {
+    const travel = byEmployee.get(candidate.employeeId);
+    if (!travel) return { candidate, baselineIndex, travel: { feasibility: "UNAVAILABLE" as const } };
+    const codes = [...(travel.candidateWarningCodes ?? []), ...(travel.feasibility === "INFEASIBLE" ? ["TRAVEL_INFEASIBLE" as const] : [])];
+    return { candidate: { ...candidate, travelFeasibility: travel.feasibility, travelStatus: travel.durationSeconds === undefined ? "UNAVAILABLE" : travel.feasibility === "INFEASIBLE" ? "ESTIMATED_INFEASIBLE" : "ESTIMATED_FEASIBLE", ...(travel.durationSeconds === undefined ? {} : { estimatedTravelMinutes: Math.round(travel.durationSeconds / 60) }), ...(codes.length === 0 ? {} : { candidateWarningCodes: codes }), ...(travel.nextAssignmentWarning === undefined ? {} : { nextAssignmentWarning: travel.nextAssignmentWarning }) }, baselineIndex, travel };
+  });
+  const bucket = (value: CandidateTravelEnrichment["feasibility"]): number => value === "FEASIBLE" ? 0 : value === "INFEASIBLE" ? 1 : 2;
+  if (reorder) enriched.sort((left, right) => {
+    if (urgent) return bucket(left.travel.feasibility) - bucket(right.travel.feasibility) || (left.travel.durationSeconds ?? Number.POSITIVE_INFINITY) - (right.travel.durationSeconds ?? Number.POSITIVE_INFINITY) || left.baselineIndex - right.baselineIndex;
+    if (left.travel.durationSeconds !== undefined && right.travel.durationSeconds !== undefined && sameSubstantiveRanking(left.candidate, right.candidate)) return left.travel.durationSeconds - right.travel.durationSeconds || left.baselineIndex - right.baselineIndex;
+    return left.baselineIndex - right.baselineIndex;
+  });
+  return enriched.map(({ candidate }, index) => ({ ...candidate, rank: index + 1 }));
+}
+
+function sameSubstantiveRanking(left: CandidateRecommendation, right: CandidateRecommendation): boolean {
+  if (left.availabilityState !== right.availabilityState || left.category !== right.category || left.closingLevel !== right.closingLevel || left.workloadCount !== right.workloadCount || left.technicalSkills.length !== right.technicalSkills.length) return false;
+  const score: Record<CandidateRecommendation["technicalSkills"][number]["technicalLevel"], number> = { STRONG: 3, NORMAL: 2, WEAK: 1, UNKNOWN: 0 };
+  const leftScores = left.technicalSkills.map((skill) => score[skill.technicalLevel]);
+  const rightScores = right.technicalSkills.map((skill) => score[skill.technicalLevel]);
+  return Math.min(...leftScores, 0) === Math.min(...rightScores, 0)
+    && leftScores.reduce((total, value) => total + value, 0) === rightScores.reduce((total, value) => total + value, 0);
 }

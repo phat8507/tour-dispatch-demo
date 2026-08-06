@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { recommendProductionCandidates } from "@/domain/production-candidate-recommendations";
+import { enrichBaselineRecommendations, isUrgentTour, recommendProductionCandidates } from "@/domain/production-candidate-recommendations";
 import type { ProductionRecommendationEmployee, ProductionRecommendationInput } from "@/domain/production-candidate-recommendations";
 
 const services = [
@@ -19,6 +19,50 @@ function input(employees: ProductionRecommendationEmployee[]): ProductionRecomme
 }
 
 describe("production candidate recommendations", () => {
+  it("classifies urgency inclusively from now through exactly thirty minutes", () => {
+    const now = "2030-01-01T00:00:00.000Z";
+    expect(isUrgentTour("2029-12-31T23:59:59.999Z", now)).toBe(false);
+    expect(isUrgentTour(now, now)).toBe(true);
+    expect(isUrgentTour("2030-01-01T00:00:00.001Z", now)).toBe(true);
+    expect(isUrgentTour("2030-01-01T00:30:00.000Z", now)).toBe(true);
+    expect(isUrgentTour("2030-01-01T00:30:00.001Z", now)).toBe(false);
+  });
+  it("reorders only the fixed baseline candidates for urgent real travel", () => {
+    const baseline = recommendProductionCandidates(input([employee("a"), employee("b")]));
+    const result = enrichBaselineRecommendations(baseline, [{ employeeId: "a", durationSeconds: 120, feasibility: "INFEASIBLE" }, { employeeId: "b", durationSeconds: 60, feasibility: "FEASIBLE" }], true);
+    expect(result.map((candidate) => candidate.employeeId)).toEqual(["b", "a"]);
+    expect(result[0].estimatedTravelMinutes).toBe(1);
+    expect(result[1].candidateWarningCodes).toEqual(["TRAVEL_INFEASIBLE"]);
+  });
+  it("orders urgent fixed baseline candidates by feasible, infeasible, unavailable, then raw duration", () => {
+    const baseline = recommendProductionCandidates(input([employee("one"), employee("two"), employee("three"), employee("four")]));
+    const fixed = baseline.slice(0, 3);
+    const result = enrichBaselineRecommendations(fixed, [
+      { employeeId: fixed[0].employeeId, durationSeconds: 120, feasibility: "INFEASIBLE" },
+      { employeeId: fixed[1].employeeId, feasibility: "UNAVAILABLE" },
+      { employeeId: fixed[2].employeeId, durationSeconds: 60, feasibility: "FEASIBLE" },
+    ], true);
+    expect(result.map((candidate) => candidate.employeeId)).toEqual([fixed[2].employeeId, fixed[0].employeeId, fixed[1].employeeId]);
+    expect(result).toHaveLength(3);
+    const outside = baseline.find((candidate) => !fixed.some((item) => item.employeeId === candidate.employeeId));
+    if (outside) expect(result.map((candidate) => candidate.employeeId)).not.toContain(outside.employeeId);
+  });
+  it("preserves baseline order for equal urgent durations and unavailable candidates", () => {
+    const baseline = recommendProductionCandidates(input([employee("one"), employee("two"), employee("three")]));
+    const equal = enrichBaselineRecommendations(baseline, baseline.map((candidate) => ({ employeeId: candidate.employeeId, durationSeconds: 61, feasibility: "FEASIBLE" })), true);
+    const unavailable = enrichBaselineRecommendations(baseline, baseline.map((candidate) => ({ employeeId: candidate.employeeId, feasibility: "UNAVAILABLE" })), true);
+    expect(equal.map((candidate) => candidate.employeeId)).toEqual(baseline.map((candidate) => candidate.employeeId));
+    expect(unavailable.map((candidate) => candidate.employeeId)).toEqual(baseline.map((candidate) => candidate.employeeId));
+  });
+  it("uses travel only for a non-urgent complete business-ranking tie", () => {
+    const baseline = recommendProductionCandidates(input([employee("a"), employee("b"), employee("c", { workloadCount: 1 } as never)]));
+    const tied = enrichBaselineRecommendations(baseline.slice(0, 2), [{ employeeId: "a", durationSeconds: 120, feasibility: "FEASIBLE" }, { employeeId: "b", durationSeconds: 60, feasibility: "FEASIBLE" }], false);
+    expect(tied.map((candidate) => candidate.employeeId)).toEqual(["b", "a"]);
+    const equal = enrichBaselineRecommendations(baseline.slice(0, 2), [{ employeeId: "a", durationSeconds: 60, feasibility: "FEASIBLE" }, { employeeId: "b", durationSeconds: 60, feasibility: "FEASIBLE" }], false);
+    expect(equal.map((candidate) => candidate.employeeId)).toEqual(["a", "b"]);
+    const unavailable = enrichBaselineRecommendations(baseline.slice(0, 2), [{ employeeId: "a", feasibility: "UNAVAILABLE" }, { employeeId: "b", durationSeconds: 1, feasibility: "FEASIBLE" }], false);
+    expect(unavailable.map((candidate) => candidate.employeeId)).toEqual(["a", "b"]);
+  });
   it("returns at most three deterministic primary candidates by availability, capability, workload, and ID", () => {
     const result = recommendProductionCandidates(input([
       employee("employee-d"),
