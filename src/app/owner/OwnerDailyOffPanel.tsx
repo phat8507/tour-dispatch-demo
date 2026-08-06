@@ -22,23 +22,18 @@ function EmployeeOffForm({ employee, selectedDate, atLimit }: { employee: DailyO
 }
 
 function EmployeeOffControl({ employee, selectedDate, atLimit }: { employee: DailyOffEmployee; selectedDate: string; atLimit: boolean }) {
-  return <div className="rounded-lg border border-slate-200 bg-white p-3"><div className="flex items-center justify-between gap-3"><div><p className="font-medium text-slate-900">{employee.name}</p><p className={`text-xs font-semibold ${employee.isOff ? "text-rose-700" : "text-emerald-700"}`}>{employee.isOff ? "OFF" : "ON"}</p></div><EmployeeOffForm key={employee.isOff ? "off" : "on"} employee={employee} selectedDate={selectedDate} atLimit={atLimit} /></div></div>;
+  return <div className="rounded-lg border border-slate-200 bg-white p-3"><div className="flex items-center justify-between gap-3"><div><p className="font-medium text-slate-900">{employee.name}</p><p className={`text-xs font-semibold ${employee.isOff ? "text-rose-700" : "text-emerald-700"}`}>{employee.isOff ? "Đang nghỉ" : "Đang làm"}</p></div><EmployeeOffForm key={employee.isOff ? "off" : "on"} employee={employee} selectedDate={selectedDate} atLimit={atLimit} /></div></div>;
 }
 
 export function OwnerDailyOffPanel({ selectedDate, employees, offCount, maxOff }: { selectedDate: string; employees: DailyOffEmployee[]; offCount: number; maxOff: 2 }) {
   return (
-    <section aria-labelledby="daily-off-heading" className="mb-5 rounded-xl border border-slate-200 bg-slate-100 p-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><h2 id="daily-off-heading" className="font-semibold text-slate-950">Lịch nghỉ theo ngày</h2><p className="mt-1 text-sm text-slate-600">OFF là nghỉ trọn ngày theo Asia/Ho_Chi_Minh và không thể ghi đè.</p></div>
-        <form method="get" action="/owner" className="flex items-end gap-2">
-          <label className="text-sm font-medium text-slate-700">Ngày<input className="ml-2 rounded-lg border border-slate-300 bg-white px-2 py-1.5" type="date" name="offDate" defaultValue={selectedDate} /></label>
-          <button type="submit" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium">Xem ngày</button>
-        </form>
-      </div>
+    <details className="mb-5 rounded-xl border border-slate-200 bg-slate-100 p-4">
+      <summary id="daily-off-heading" className="cursor-pointer font-semibold text-slate-950">Quản lý nhân viên nghỉ</summary>
+      <p className="mt-2 text-sm text-slate-600">Trạng thái nghỉ áp dụng cho ngày đã chọn.</p>
       <p className="mt-3 text-sm font-semibold text-slate-800">{offCount}/{maxOff} người nghỉ</p>
       <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         {employees.map((employee) => <EmployeeOffControl key={employee.id} employee={employee} selectedDate={selectedDate} atLimit={offCount >= maxOff} />)}
       </div>
-    </section>
+    </details>
   );
 }

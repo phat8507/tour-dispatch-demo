@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { upsertOwnerRoutingOrigin, removeOwnerRoutingOrigin, type OwnerMutationState } from "../actions";
 import type { EmployeeRoutingOriginDto } from "@/features/dispatch/owner-dispatch-view-model";
@@ -54,26 +54,31 @@ function OriginForm({ origin }: { origin: EmployeeRoutingOriginDto }) {
 }
 
 function RoutingOriginControl({ origin }: { origin: EmployeeRoutingOriginDto }) {
+  const [editing, setEditing] = useState(false);
+  const hasOrigin = origin.latitude !== null && origin.longitude !== null;
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="font-medium text-slate-900">{origin.employeeName}</p>
-          <p className={`text-xs font-semibold ${origin.isActive ? "text-emerald-700" : "text-rose-700"}`}>{origin.isActive ? "ACTIVE" : "INACTIVE"}</p>
+          <p className={`text-xs font-semibold ${origin.isActive ? "text-emerald-700" : "text-rose-700"}`}>{origin.isActive ? "Đang hoạt động" : "Không hoạt động"}</p>
+          <p className="text-xs text-slate-600">Cơ sở mặc định · {hasOrigin ? "Đã có điểm riêng" : "Chưa có điểm riêng"}</p>
         </div>
+        <button type="button" onClick={() => setEditing((value) => !value)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium">{editing ? "Đóng" : "Thiết lập điểm riêng"}</button>
       </div>
-      <OriginForm origin={origin} />
+      {editing && <OriginForm origin={origin} />}
     </div>
   );
 }
 
 export function OwnerRoutingOriginPanel({ origins }: { origins: EmployeeRoutingOriginDto[] }) {
   return (
-    <section aria-labelledby="routing-origin-heading" className="mb-5 rounded-xl border border-slate-200 bg-slate-100 p-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <details className="mb-5 rounded-xl border border-slate-200 bg-slate-100 p-4">
+      <summary id="routing-origin-heading" className="cursor-pointer font-semibold text-slate-950">Cài đặt nâng cao</summary>
+      <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 id="routing-origin-heading" className="font-semibold text-slate-950">Quản lý điểm xuất phát</h2>
-          <p className="mt-1 text-sm text-slate-600">Dùng cho thuật toán tìm đường đầu ngày. Không hiển thị trên bản đồ.</p>
+          <h2 className="font-semibold text-slate-950">Điểm bắt đầu riêng của nhân viên</h2>
+          <p className="mt-1 text-sm text-slate-600">Mặc định, hệ thống sử dụng cơ sở của nhân viên. Chỉ thiết lập điểm riêng khi nhân viên thường bắt đầu ngày làm việc ở địa điểm khác.</p>
         </div>
       </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
@@ -81,6 +86,6 @@ export function OwnerRoutingOriginPanel({ origins }: { origins: EmployeeRoutingO
           <RoutingOriginControl key={origin.employeeId} origin={origin} />
         ))}
       </div>
-    </section>
+    </details>
   );
 }

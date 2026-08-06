@@ -13,10 +13,9 @@ describe("owner daily OFF panel", () => {
       { id: "e1", name: "Employee One", isActive: true, isOff: true },
       { id: "e2", name: "Employee Two", isActive: true, isOff: false },
     ]} offCount={1} maxOff={2} />);
-    expect(screen.getByLabelText("Ngày")).toHaveProperty("value", "2030-01-01");
     expect(screen.getByText("1/2 người nghỉ")).toBeTruthy();
-    expect(screen.getByText("Employee One").parentElement?.textContent).toContain("OFF");
-    expect(screen.getByText("Employee Two").parentElement?.textContent).toContain("ON");
+    expect(screen.getByText("Employee One").parentElement?.textContent).toContain("Đang nghỉ");
+    expect(screen.getByText("Employee Two").parentElement?.textContent).toContain("Đang làm");
   });
 
   it("uses named mark/unmark forms and disables a third OFF action at the limit", () => {

@@ -11,7 +11,7 @@ describe("owner candidate recommendations", () => {
   it("shows explainable UNKNOWN warnings and selection remains client-only", () => {
     const onSelect = vi.fn();
     render(<OwnerCandidateRecommendations recommendations={[recommendation]} onSelect={onSelect} />);
-    expect(screen.getByText(/kỹ năng UNKNOWN/)).toBeTruthy();
+    expect(screen.getByText(/chưa đủ thông tin kỹ năng/)).toBeTruthy();
     expect(screen.getByText(/Incomplete skill data/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Employee/ }));
     expect(onSelect).toHaveBeenCalledWith("employee");

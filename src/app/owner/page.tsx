@@ -67,7 +67,8 @@ export default async function OwnerDispatchPage({ searchParams }: { searchParams
       <header className="mb-5 flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-slate-950">Điều phối tour</h1>
-          <p className="mt-1 text-sm text-slate-600">Bản đồ là lớp hiển thị. Phân công đã xác nhận trong PostgreSQL là dữ liệu chuẩn.</p>
+          <p className="mt-1 text-sm text-slate-600">Chọn nhân viên phù hợp và xác nhận phân công tour.</p>
+          <p className="mt-1 text-sm text-slate-600">Các phân công đã xác nhận được lưu tự động.</p>
         </div>
         <form action={logout}>
           <button className="whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
@@ -75,9 +76,13 @@ export default async function OwnerDispatchPage({ searchParams }: { searchParams
           </button>
         </form>
       </header>
+      <form method="get" action="/owner" className="mb-5 flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-white p-4">
+        <label className="text-sm font-medium text-slate-700">Ngày điều phối<input className="ml-2 rounded-lg border border-slate-300 bg-white px-2 py-1.5" type="date" name="offDate" defaultValue={offDate} /></label>
+        <button type="submit" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium">Xem ngày</button>
+      </form>
+      <OwnerDispatchDashboard tours={projection.tours} recommendations={projection.recommendations} providerWarnings={projection.providerWarnings} mapModel={projection.mapModel} />
       <OwnerDailyOffPanel selectedDate={offDate} {...projection.dailyOff} />
       <OwnerRoutingOriginPanel origins={projection.routingOrigins} />
-      <OwnerDispatchDashboard tours={projection.tours} recommendations={projection.recommendations} providerWarnings={projection.providerWarnings} mapModel={projection.mapModel} />
     </main>
   );
 }

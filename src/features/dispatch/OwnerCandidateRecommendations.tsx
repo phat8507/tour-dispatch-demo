@@ -1,5 +1,9 @@
 import type { CandidateRecommendation } from "@/domain/production-candidate-recommendations";
 
+function presentationStatus(value: string): string {
+  return ({ AVAILABLE_NOW: "Sẵn sàng", BUSY: "Đang có tour", NEAR_COMPLETION: "Sắp hoàn thành tour", UNKNOWN: "Chưa đủ thông tin", UNAVAILABLE: "Chưa xác định thời gian di chuyển" }[value] ?? value);
+}
+
 export function OwnerCandidateRecommendations({ recommendations, selectedEmployeeId, onSelect }: { recommendations: CandidateRecommendation[]; selectedEmployeeId?: string; onSelect: (employeeId: string) => void }) {
   return (
     <section aria-label="Gợi ý nhân viên" className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -9,7 +13,7 @@ export function OwnerCandidateRecommendations({ recommendations, selectedEmploye
           {recommendations.map((recommendation) => (
             <button key={recommendation.employeeId} type="button" aria-pressed={selectedEmployeeId === recommendation.employeeId} onClick={() => onSelect(recommendation.employeeId)} className={`rounded-md border p-2 text-left text-xs ${selectedEmployeeId === recommendation.employeeId ? "border-blue-500 bg-blue-50" : "border-slate-200 bg-white"}`}>
               <span className="block font-semibold text-slate-900">#{recommendation.rank} {recommendation.employeeName}</span>
-              <span className="mt-1 block text-slate-700">{recommendation.category === "PRIMARY" ? "Đủ dữ liệu kỹ năng" : "Dự phòng · kỹ năng UNKNOWN · cần ghi đè"} · {recommendation.availabilityState} · {recommendation.workloadCount} tour/ngày</span>
+              <span className="mt-1 block text-slate-700">{recommendation.category === "PRIMARY" ? "Đủ dữ liệu kỹ năng" : "Dự phòng · chưa đủ thông tin kỹ năng · cần ghi đè"} · {presentationStatus(recommendation.availabilityState)} · {recommendation.workloadCount} tour/ngày</span>
               {recommendation.reasons.map((reason) => <span key={reason} className="mt-1 block text-slate-600">• {reason}</span>)}
               {recommendation.warnings.map((warning) => <span key={warning} className="mt-1 block text-amber-800">⚠ {warning}</span>)}
               {recommendation.estimatedTravelMinutes !== undefined && <span className="mt-1 block text-slate-700">Estimated travel: {recommendation.estimatedTravelMinutes} minutes</span>}
