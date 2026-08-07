@@ -47,18 +47,9 @@ const ACTIVE_ASSIGNMENT_STATUSES = new Set([
   "DELAYED",
 ]);
 
-function hasValidCoordinates(location: {
-  latitude: number;
-  longitude: number;
-}): boolean {
-  return (
-    Number.isFinite(location.latitude) &&
-    location.latitude >= -90 &&
-    location.latitude <= 90 &&
-    Number.isFinite(location.longitude) &&
-    location.longitude >= -180 &&
-    location.longitude <= 180
-  );
+function hasValidCoordinates(location: { latitude: number | null; longitude: number | null }): boolean {
+  const { latitude, longitude } = location;
+  return latitude !== null && longitude !== null && Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 && Number.isFinite(longitude) && longitude >= -180 && longitude <= 180;
 }
 
 function markerState(
@@ -78,7 +69,8 @@ export function buildOwnerDispatchMapModel(
 ): OwnerDispatchMapModel {
   const warnings: string[] = [];
   const tourMarkers = tours.flatMap((tour): OwnerDispatchMapTour[] => {
-    if (!hasValidCoordinates(tour.location)) {
+    const { latitude, longitude } = tour.location;
+    if (!hasValidCoordinates(tour.location) || latitude === null || longitude === null) {
       warnings.push(
         `Không thể hiển thị marker cho ${tour.customerName} vì tọa độ không hợp lệ.`,
       );
@@ -90,8 +82,8 @@ export function buildOwnerDispatchMapModel(
         customerName: tour.customerName,
         status: tour.status,
         requestedAt: tour.requestedAt,
-        latitude: tour.location.latitude,
-        longitude: tour.location.longitude,
+        latitude,
+        longitude,
         locationName: tour.location.name,
         address: tour.location.address,
         markerState: markerState(tour.assignments),

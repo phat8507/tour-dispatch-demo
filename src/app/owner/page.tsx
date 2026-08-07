@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { logout } from "../actions";
 import { OwnerDailyOffPanel } from "./OwnerDailyOffPanel";
 import { OwnerRoutingOriginPanel } from "./OwnerRoutingOriginPanel";
+import { OwnerTourCreatePanel } from "./OwnerTourCreatePanel";
 import { OwnerDispatchDashboard } from "@/features/dispatch/OwnerDispatchDashboard";
 import { buildOwnerDispatchMapModel } from "@/features/dispatch/owner-dispatch-map-model";
 import type { OwnerDispatchMapModel } from "@/features/dispatch/owner-dispatch-map-model";
@@ -35,6 +36,8 @@ export default async function OwnerDispatchPage({ searchParams }: { searchParams
     mapModel: OwnerDispatchMapModel;
     dailyOff: DailyOffProjection;
     routingOrigins: EmployeeRoutingOriginDto[];
+    branches: Awaited<ReturnType<typeof dependencies.readModel.listOwnerDispatchBranches>>;
+    services: Array<{ id: string; name: string; durationMinutes: number }>;
   };
   try {
     authenticateSession(token, dependencies.owner);
@@ -43,17 +46,18 @@ export default async function OwnerDispatchPage({ searchParams }: { searchParams
   }
 
   try {
-    const tours = await dependencies.readModel.listOwnerDispatchTours();
-    const [branches, dailyOff, routingOriginLoad] = await Promise.all([
+    const tours = await dependencies.readModel.listOwnerDispatchTours(offDate);
+    const [branches, dailyOff, routingOriginLoad, services] = await Promise.all([
       dependencies.readModel.listOwnerDispatchBranches(),
       dependencies.readModel.listDailyOffEmployees(offDate),
       dependencies.readModel.loadOwnerRoutingOrigins(),
+      dependencies.readModel.listOwnerDispatchServices(),
     ]);
     const recommendationsByOrder = await dependencies.readModel.listCandidateRecommendationsForTours(tours, new Date(), routingOriginLoad.byEmployeeId, dependencies.travelProvider);
     prepareStoredOriginsForBaseline(recommendationsByOrder, routingOriginLoad.byEmployeeId);
     const recommendationMap = new Map(recommendationsByOrder.map((item) => [item.orderId, item.recommendations]));
     const recommendations = tours.map((tour) => recommendationMap.get(tour.id) ?? []);
-    projection = { tours, recommendations, providerWarnings: tours.map((tour) => recommendationMap.has(tour.id) ? recommendationsByOrder.find((item) => item.orderId === tour.id)?.providerWarning : undefined), mapModel: buildOwnerDispatchMapModel(tours, branches), dailyOff, routingOrigins: routingOriginLoad.panelOrigins };
+    projection = { tours, recommendations, providerWarnings: tours.map((tour) => recommendationMap.has(tour.id) ? recommendationsByOrder.find((item) => item.orderId === tour.id)?.providerWarning : undefined), mapModel: buildOwnerDispatchMapModel(tours, branches), dailyOff, routingOrigins: routingOriginLoad.panelOrigins, branches, services };
   } catch {
     return (
       <main className="mx-auto flex min-h-[100dvh] w-full max-w-5xl items-center justify-center p-6">
@@ -86,7 +90,8 @@ export default async function OwnerDispatchPage({ searchParams }: { searchParams
         </label>
         <button type="submit" className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">Xem ngày</button>
       </form>
-      <OwnerDispatchDashboard tours={projection.tours} recommendations={projection.recommendations} providerWarnings={projection.providerWarnings} mapModel={projection.mapModel} />
+      <OwnerTourCreatePanel selectedDate={offDate} services={projection.services} branches={projection.branches} />
+      <OwnerDispatchDashboard tours={projection.tours} recommendations={projection.recommendations} providerWarnings={projection.providerWarnings} mapModel={projection.mapModel} emptyCreateTour={<OwnerTourCreatePanel selectedDate={offDate} services={projection.services} branches={projection.branches} />} />
       <div className="mt-5 space-y-3">
         <OwnerDailyOffPanel selectedDate={offDate} {...projection.dailyOff} />
         <OwnerRoutingOriginPanel origins={projection.routingOrigins} />

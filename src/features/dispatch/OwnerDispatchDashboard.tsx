@@ -7,12 +7,14 @@ import type { OwnerDispatchMapModel } from "./owner-dispatch-map-model";
 import { OwnerDispatchMap } from "./OwnerDispatchMap";
 import { OwnerCandidateRecommendations } from "./OwnerCandidateRecommendations";
 import type { CandidateRecommendation } from "@/domain/production-candidate-recommendations";
+import type { ReactNode } from "react";
 
 export type OwnerDispatchDashboardProps = {
   tours: OwnerDispatchTour[];
   recommendations: CandidateRecommendation[][];
   providerWarnings?: Array<"NO_PROVIDER" | "TIMEOUT" | "RATE_LIMITED" | "MALFORMED_RESPONSE" | "TOTAL_FAILURE" | undefined>;
   mapModel: OwnerDispatchMapModel;
+  emptyCreateTour?: ReactNode;
 };
 
 function statusLabel(value: string): string {
@@ -24,6 +26,7 @@ export function OwnerDispatchDashboard({
   recommendations,
   providerWarnings,
   mapModel,
+  emptyCreateTour,
 }: OwnerDispatchDashboardProps) {
   const [selectedTourId, setSelectedTourId] = useState<string | null>(null);
   const [selectedEmployees, setSelectedEmployees] = useState<Record<string, string>>({});
@@ -62,8 +65,8 @@ export function OwnerDispatchDashboard({
         <h2 className="mb-3 text-sm font-semibold tracking-wide text-slate-500 uppercase">Tour cần điều phối</h2>
         {tours.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-6 text-center">
-            <p className="font-medium text-slate-900">Chưa có tour cần điều phối.</p>
-            <p className="mt-1 text-sm text-slate-600">Danh sách sẽ hiện khi có tour mới trong ngày đã chọn.</p>
+            <p className="font-medium text-slate-900">Chưa có tour trong ngày này.</p>
+            <div className="mt-3">{emptyCreateTour}</div>
           </div>
         ) : (
           <div className="max-h-[72dvh] space-y-3 overflow-y-auto pr-1">
@@ -115,6 +118,7 @@ export function OwnerDispatchDashboard({
                     orderId={tour.id}
                     orderVersion={tour.orderVersion}
                     requestedAt={tour.requestedAt}
+                    durationMinutes={tour.services.reduce((total, service) => total + service.durationMinutes, 0)}
                     candidates={(recommendations[index] ?? []).map((candidate) => ({ id: candidate.employeeId, name: candidate.employeeName, requiresOverride: candidate.requiresOverride }))}
                     selectedEmployeeId={selectedEmployees[tour.id]}
                   />

@@ -153,4 +153,9 @@ export class PostgresDispatchAssignmentGateway implements DispatchAssignmentGate
     try { await this.pool.query("select public.remove_employee_routing_origin($1)", [employeeId]); }
     catch (error) { throw toPersistenceError(error); }
   }
+
+  async createOwnerTour(input: { orderId: string; customerName: string; customerPhone: string; customerAddress: string; requestedAt: string; orderType: "NEW_TOUR" | "MILEAGE"; serviceId: string; notes: string; fulfillment: "HOME" | "BRANCH"; branchId: string }): Promise<void> {
+    try { await this.pool.query("select public.create_owner_tour($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)", [input.orderId, input.customerName, input.customerPhone, input.customerAddress, input.requestedAt, input.orderType, input.serviceId, input.notes, input.fulfillment, input.branchId || null]); }
+    catch (error) { throw toPersistenceError(error); }
+  }
 }

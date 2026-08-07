@@ -75,7 +75,7 @@ describe("owner dispatch dashboard", () => {
         mapModel={{ tours: [], tourMarkers: [], branchMarkers: [], warnings: [] }}
       />,
     );
-    expect(screen.getByText("Chưa có tour cần điều phối.")).toBeTruthy();
+    expect(screen.getByText("Chưa có tour trong ngày này.")).toBeTruthy();
     expect(document.body.textContent).not.toContain("Customer 1");
   });
 

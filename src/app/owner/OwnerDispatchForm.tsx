@@ -8,18 +8,18 @@ type Candidate = { id: string; name: string; requiresOverride?: boolean };
 const fieldClassName =
   "min-h-11 rounded-lg border border-slate-300 bg-white px-2.5 text-sm text-slate-950 outline-none transition-colors hover:border-slate-400 focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/40";
 
-export function OwnerDispatchForm({ orderId, orderVersion, requestedAt, candidates, selectedEmployeeId }: { orderId: string; orderVersion: string; requestedAt: string; candidates: Candidate[]; selectedEmployeeId?: string }) {
+export function OwnerDispatchForm({ orderId, orderVersion, requestedAt, durationMinutes = 60, candidates, selectedEmployeeId }: { orderId: string; orderVersion: string; requestedAt: string; durationMinutes?: number; candidates: Candidate[]; selectedEmployeeId?: string }) {
   const initialState = { message: "", ok: false };
   const [confirmState, confirmAction] = useActionState(confirmOwnerDispatch, initialState);
   const [overrideState, overrideAction] = useActionState(overrideOwnerDispatch, initialState);
   return (
     <div className="mt-3 space-y-2 border-t border-slate-200 pt-3">
       <form action={confirmAction} className="flex flex-wrap items-center gap-2">
-        <Fields key={`confirm-${selectedEmployeeId ?? "none"}`} orderId={orderId} orderVersion={orderVersion} requestedAt={requestedAt} candidates={candidates} selectedEmployeeId={selectedEmployeeId} />
+        <Fields key={`confirm-${selectedEmployeeId ?? "none"}`} orderId={orderId} orderVersion={orderVersion} requestedAt={requestedAt} durationMinutes={durationMinutes} candidates={candidates} selectedEmployeeId={selectedEmployeeId} />
         <OwnerSubmit label="Xác nhận phân công" />
       </form>
       <form action={overrideAction} className="flex flex-wrap items-center gap-2">
-        <Fields key={`override-${selectedEmployeeId ?? "none"}`} orderId={orderId} orderVersion={orderVersion} requestedAt={requestedAt} candidates={candidates} selectedEmployeeId={selectedEmployeeId} reason />
+        <Fields key={`override-${selectedEmployeeId ?? "none"}`} orderId={orderId} orderVersion={orderVersion} requestedAt={requestedAt} durationMinutes={durationMinutes} candidates={candidates} selectedEmployeeId={selectedEmployeeId} reason />
         <OwnerSubmit label="Ghi đè phân công" />
       </form>
       <OwnerDispatchStatus confirmState={confirmState} overrideState={overrideState} />
@@ -27,7 +27,8 @@ export function OwnerDispatchForm({ orderId, orderVersion, requestedAt, candidat
   );
 }
 
-function Fields({ orderId, orderVersion, requestedAt, candidates, selectedEmployeeId, reason = false }: { orderId: string; orderVersion: string; requestedAt: string; candidates: Candidate[]; selectedEmployeeId?: string; reason?: boolean }) {
+function Fields({ orderId, orderVersion, requestedAt, durationMinutes, candidates, selectedEmployeeId, reason = false }: { orderId: string; orderVersion: string; requestedAt: string; durationMinutes: number; candidates: Candidate[]; selectedEmployeeId?: string; reason?: boolean }) {
+  const startsAt = requestedAt.slice(0, 16); const endsAt = new Date(new Date(requestedAt).getTime() + durationMinutes * 60_000).toISOString().slice(0, 16);
   return (
     <>
       <input type="hidden" name="orderId" value={orderId} />
@@ -36,8 +37,8 @@ function Fields({ orderId, orderVersion, requestedAt, candidates, selectedEmploy
         <option value="" disabled>Chọn nhân viên</option>
         {candidates.map((candidate) => <option key={candidate.id} value={candidate.id} disabled={!reason && candidate.requiresOverride}>{candidate.name}{candidate.requiresOverride ? " (cần ghi đè)" : ""}</option>)}
       </select>
-      <input name="startsAt" type="datetime-local" defaultValue={requestedAt.slice(0, 16)} required className={fieldClassName} />
-      <input name="endsAt" type="datetime-local" required className={fieldClassName} />
+      <input name="startsAt" type="datetime-local" defaultValue={startsAt} required className={fieldClassName} />
+      <input name="endsAt" type="datetime-local" defaultValue={endsAt} required className={fieldClassName} />
       {reason && <input name="overrideReason" placeholder="Lý do ghi đè" required className={`flex-1 ${fieldClassName}`} />}
     </>
   );
