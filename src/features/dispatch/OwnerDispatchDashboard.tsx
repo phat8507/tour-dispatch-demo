@@ -8,6 +8,7 @@ import { OwnerDispatchMap } from "./OwnerDispatchMap";
 import { OwnerCandidateRecommendations } from "./OwnerCandidateRecommendations";
 import type { CandidateRecommendation } from "@/domain/production-candidate-recommendations";
 import type { ReactNode } from "react";
+import { formatOwnerDateTime } from "./owner-display";
 
 export type OwnerDispatchDashboardProps = {
   tours: OwnerDispatchTour[];
@@ -92,7 +93,7 @@ export function OwnerDispatchDashboard({
                       {tour.customerName}
                     </span>
                     <span className="mt-1 block text-sm text-slate-600">
-                      {tour.requestedAt} | {tour.location.name} | {statusLabel(tour.status)}
+                      {formatOwnerDateTime(tour.requestedAt)} | {tour.location.name} | {statusLabel(tour.status)}
                     </span>
                     <span className="mt-1 block text-sm text-slate-600">
                       Dịch vụ: {tour.services.map((service) => service.name).join(", ") || "Không có dịch vụ"}

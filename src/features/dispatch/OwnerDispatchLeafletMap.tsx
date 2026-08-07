@@ -17,6 +17,7 @@ import type {
   OwnerDispatchMapTour,
 } from "./owner-dispatch-map-model";
 import { getOwnerDispatchMarkerPositions } from "./owner-dispatch-map-model";
+import { formatOwnerDateTime } from "./owner-display";
 
 const DEFAULT_CENTER: [number, number] = [16, 106];
 
@@ -97,7 +98,7 @@ function TourMarker({
           <p className="font-semibold">{tour.customerName}</p>
           <p>{tour.locationName}</p>
           <p>{tour.address}</p>
-          <p>{tour.requestedAt}</p>
+          <p>{formatOwnerDateTime(tour.requestedAt)}</p>
           <p>Trạng thái: {tour.markerState}</p>
           <p>Nhân viên: {employees.join(", ") || "Chưa phân công"}</p>
           {tour.assignments

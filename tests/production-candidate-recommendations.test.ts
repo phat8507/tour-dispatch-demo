@@ -81,7 +81,7 @@ describe("production candidate recommendations", () => {
     expect(onePrimary).toHaveLength(2);
     expect(onePrimary[1]).toMatchObject({ employeeId: "unknown", category: "UNKNOWN_SKILL_FALLBACK", requiresOverride: true });
     expect(onePrimary[1].technicalSkills).toContainEqual({ serviceId: "service-b", serviceName: "Service B", technicalLevel: "UNKNOWN" });
-    expect(onePrimary[1].warnings.join(" ")).toContain("Service B (service-b)");
+    expect(onePrimary[1].warnings.join(" ")).toContain("Chưa đủ dữ liệu kỹ năng cho: Service B");
     const twoPrimary = recommendProductionCandidates(input([employee("known-a"), employee("known-b"), unknown]));
     expect(twoPrimary.map((candidate) => candidate.employeeId)).toEqual(["known-a", "known-b"]);
   });
@@ -96,7 +96,7 @@ describe("production candidate recommendations", () => {
     const near = employee("near", { assignments: [{ orderId: "current", startsAt: "2030-01-01T07:00:00Z", endsAt: "2030-01-01T08:20:00Z", status: "DELAYED", locationCoordinatesAvailable: true }] });
     const result = recommendProductionCandidates(input([near]));
     expect(result[0]).toMatchObject({ availabilityState: "NEAR_COMPLETION", estimatedAvailableAt: "2030-01-01T08:20:00.000Z", travelEvaluation: "NOT_EVALUATED" });
-    expect(result[0].reasons.join(" ")).toContain("Estimated from persisted schedule");
+    expect(result[0].reasons.join(" ")).toContain("Lịch đã lưu cho thấy sắp hoàn thành");
     expect(JSON.stringify(result[0])).not.toMatch(/travelMinutes|distanceKm|arrivalAt/);
   });
 
@@ -107,6 +107,6 @@ describe("production candidate recommendations", () => {
     ] });
     const result = recommendProductionCandidates(input([candidate]));
     expect(result[0]).toMatchObject({ workloadCount: 1, travelEvaluation: "MISSING_ORIGIN" });
-    expect(result[0].warnings.join(" ")).toContain("Home branch CS1 coordinates are unavailable");
+    expect(result[0].warnings.join(" ")).toContain("Chưa có tọa độ cơ sở CS1");
   });
 });

@@ -151,17 +151,17 @@ function projectEmployee(input: ProductionRecommendationInput, employee: Product
   const knownScores = technicalSkills.flatMap((skill) => skill.technicalLevel === "UNKNOWN" ? [] : [capabilityScore[skill.technicalLevel]]);
   const category: RecommendationCategory = missing.length === 0 ? "PRIMARY" : "UNKNOWN_SKILL_FALLBACK";
   const reasons = [
-    `${state.state === "NEAR_COMPLETION" ? "Estimated from persisted schedule: near completion within 30 minutes" : `Availability: ${state.state}`}.`,
-    `Workload on the tour business date: ${workload(employee, input.tour)} non-cancelled assignment(s).`,
-    `Closing capability: ${employee.closingLevel}.`,
+    `${state.state === "NEAR_COMPLETION" ? "Lịch đã lưu cho thấy sắp hoàn thành trong 30 phút" : `Trạng thái sẵn sàng: ${state.state}`}.`,
+    `Khối lượng trong ngày điều phối: ${workload(employee, input.tour)} tour chưa hủy.`,
+    `Mức độ chốt: ${employee.closingLevel}.`,
   ];
-  if (category === "PRIMARY") reasons.push(`Technical capability: ${technicalSkills.map((skill) => `${skill.serviceName}=${skill.technicalLevel}`).join(", ")}.`);
+  if (category === "PRIMARY") reasons.push(`Năng lực kỹ thuật: ${technicalSkills.map((skill) => `${skill.serviceName}=${skill.technicalLevel}`).join(", ")}.`);
   const warnings = [...state.warnings];
-  if (missing.length > 0) warnings.push(`Incomplete skill data for: ${missing.map((skill) => `${skill.serviceName} (${skill.serviceId})`).join(", ")}. Explicit override is required.`);
+  if (missing.length > 0) warnings.push(`Chưa đủ dữ liệu kỹ năng cho: ${missing.map((skill) => skill.serviceName).join(", ")}. Cần ghi đè rõ ràng.`);
   let travelEvaluation: TravelEvaluation = "NOT_EVALUATED";
-  if (!input.tour.destinationCoordinatesAvailable) { travelEvaluation = "MISSING_DESTINATION"; warnings.push("Customer coordinates are unavailable; travel was not evaluated."); }
-  else if (!state.originCoordinatesAvailable) { travelEvaluation = "MISSING_ORIGIN"; warnings.push(state.state === "BUSY" || state.state === "NEAR_COMPLETION" ? "Current assignment origin coordinates are unavailable; travel was not evaluated." : `Home branch ${employee.homeBranchId} coordinates are unavailable; travel was not evaluated.`); }
-  else warnings.push("Travel has not been evaluated by an authoritative routing provider.");
+  if (!input.tour.destinationCoordinatesAvailable) { travelEvaluation = "MISSING_DESTINATION"; warnings.push("Chưa có tọa độ điểm đến nên chưa thể đánh giá di chuyển."); }
+  else if (!state.originCoordinatesAvailable) { travelEvaluation = "MISSING_ORIGIN"; warnings.push(state.state === "BUSY" || state.state === "NEAR_COMPLETION" ? "Chưa có tọa độ điểm xuất phát của tour hiện tại nên chưa thể đánh giá di chuyển." : `Chưa có tọa độ cơ sở ${employee.homeBranchId} nên chưa thể đánh giá di chuyển.`); }
+  else warnings.push("Chưa có nhà cung cấp lộ trình để đánh giá thời gian di chuyển.");
   const workloadCount = workload(employee, input.tour);
   return { employeeId: employee.id, employeeName: employee.name, category, requiresOverride: category === "UNKNOWN_SKILL_FALLBACK", availabilityState: state.state, estimatedAvailableAt: state.estimatedAvailableAt, workloadCount, closingLevel: employee.closingLevel, technicalSkills, reasons, warnings, travelEvaluation, technicalMinimum: knownScores.length ? Math.min(...knownScores) : 0, technicalTotal: knownScores.reduce((sum, score) => sum + score, 0) };
 }
