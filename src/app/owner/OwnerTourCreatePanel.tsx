@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createOwnerTour, type OwnerMutationState } from "../actions";
+import { OwnerAddressAutocomplete } from "./OwnerAddressAutocomplete";
 
 type Service = { id: string; name: string; durationMinutes: number };
 type Branch = { id: string; branchId: "CS1" | "CS2"; name: string };
@@ -24,7 +25,7 @@ export function OwnerTourCreatePanel({ selectedDate, services, branches }: { sel
       <label className="text-sm font-medium text-slate-700">Loại tour<select name="orderType" defaultValue="NEW_TOUR" className="mt-1 block min-h-11 w-full rounded-lg border border-slate-300 px-3"><option value="NEW_TOUR">Tour mới</option><option value="MILEAGE">Đơn dặm</option></select></label>
       <label className="text-sm font-medium text-slate-700">Dịch vụ<select required name="serviceId" className="mt-1 block min-h-11 w-full rounded-lg border border-slate-300 px-3"><option value="" disabled>Chọn dịch vụ</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label>
       <fieldset className="sm:col-span-2"><legend className="text-sm font-medium text-slate-700">Điểm phục vụ</legend><div className="mt-1 flex gap-4"><label><input checked={fulfillment === "HOME"} onChange={() => setFulfillment("HOME")} type="radio" name="fulfillment" value="HOME" /> Tại nhà</label><label><input checked={fulfillment === "BRANCH"} onChange={() => setFulfillment("BRANCH")} type="radio" name="fulfillment" value="BRANCH" /> Tại tiệm</label></div></fieldset>
-      {fulfillment === "HOME" ? <label className="sm:col-span-2 text-sm font-medium text-slate-700">Địa chỉ khách<input required name="customerAddress" className="mt-1 block min-h-11 w-full rounded-lg border border-slate-300 px-3" /></label> : <label className="sm:col-span-2 text-sm font-medium text-slate-700">Cơ sở<select required name="branchId" className="mt-1 block min-h-11 w-full rounded-lg border border-slate-300 px-3"><option value="" disabled>Chọn cơ sở</option>{branches.map((branch) => <option key={branch.id} value={branch.branchId}>{branch.branchId} — {branch.name}</option>)}</select></label>}
+      {fulfillment === "HOME" ? <OwnerAddressAutocomplete /> : <label className="sm:col-span-2 text-sm font-medium text-slate-700">Cơ sở<select required name="branchId" className="mt-1 block min-h-11 w-full rounded-lg border border-slate-300 px-3"><option value="" disabled>Chọn cơ sở</option>{branches.map((branch) => <option key={branch.id} value={branch.branchId}>{branch.branchId} — {branch.name}</option>)}</select></label>}
       <label className="sm:col-span-2 text-sm font-medium text-slate-700">Ghi chú<textarea name="notes" className="mt-1 block min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2" /></label>
       {state.message && <p role="status" className="sm:col-span-2 text-sm text-slate-700">{state.message}</p>}
       <button className="min-h-11 rounded-lg bg-blue-700 px-4 text-sm font-semibold text-white hover:bg-blue-800 sm:col-span-2">Lưu tour</button>

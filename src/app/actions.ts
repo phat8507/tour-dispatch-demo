@@ -76,13 +76,13 @@ export async function removeOwnerRoutingOrigin(_: OwnerMutationState, formData: 
 
 export async function createOwnerTour(_: OwnerMutationState, formData: FormData): Promise<OwnerMutationState> {
   const customerName = field(formData, "customerName").trim(); const customerPhone = field(formData, "customerPhone").trim(); const customerAddress = field(formData, "customerAddress").trim();
-  const date = field(formData, "date"); const time = field(formData, "time"); const orderType = field(formData, "orderType"); const serviceId = field(formData, "serviceId"); const notes = field(formData, "notes"); const fulfillment = field(formData, "fulfillment"); const branchId = field(formData, "branchId");
+  const date = field(formData, "date"); const time = field(formData, "time"); const orderType = field(formData, "orderType"); const serviceId = field(formData, "serviceId"); const notes = field(formData, "notes"); const fulfillment = field(formData, "fulfillment"); const branchId = field(formData, "branchId"); const customerLatitude = Number(field(formData, "customerLatitude")); const customerLongitude = Number(field(formData, "customerLongitude"));
   const requestedAt = /^\d{4}-\d{2}-\d{2}$/.test(date) && /^\d{2}:\d{2}$/.test(time) ? `${date}T${time}:00+07:00` : "";
-  if (!customerName || !requestedAt || !validUuid(serviceId) || !["NEW_TOUR", "MILEAGE"].includes(orderType) || !["HOME", "BRANCH"].includes(fulfillment) || (fulfillment === "HOME" && !customerAddress) || (fulfillment === "BRANCH" && !["CS1", "CS2"].includes(branchId))) return { ok: false, message: "Thông tin tour không hợp lệ." };
+  if (!customerName || !requestedAt || !validUuid(serviceId) || !["NEW_TOUR", "MILEAGE"].includes(orderType) || !["HOME", "BRANCH"].includes(fulfillment) || (fulfillment === "HOME" && (!customerAddress || !Number.isFinite(customerLatitude) || customerLatitude < -90 || customerLatitude > 90 || !Number.isFinite(customerLongitude) || customerLongitude < -180 || customerLongitude > 180)) || (fulfillment === "BRANCH" && !["CS1", "CS2"].includes(branchId))) return { ok: false, message: "Chưa xác định được vị trí của địa chỉ này. Vui lòng chọn một địa chỉ trong danh sách gợi ý." };
   const dependencies = createDispatchServerDependencies(); const token = (await cookies()).get("dispatch_session")?.value;
   try {
     authenticateSession(token, dependencies.owner);
-    await dependencies.gateway.createOwnerTour({ orderId: randomUUID(), customerName, customerPhone, customerAddress, requestedAt, orderType: orderType as "NEW_TOUR" | "MILEAGE", serviceId, notes, fulfillment: fulfillment as "HOME" | "BRANCH", branchId });
+    await dependencies.gateway.createOwnerTour({ orderId: randomUUID(), customerName, customerPhone, customerAddress, customerLatitude: fulfillment === "HOME" ? customerLatitude : null, customerLongitude: fulfillment === "HOME" ? customerLongitude : null, requestedAt, orderType: orderType as "NEW_TOUR" | "MILEAGE", serviceId, notes, fulfillment: fulfillment as "HOME" | "BRANCH", branchId });
     revalidatePath("/owner"); return { ok: true, message: "Đã tạo tour." };
   } catch { return { ok: false, message: "Không thể lưu tour. Vui lòng thử lại." }; }
 }
