@@ -59,7 +59,7 @@ describe("durable dispatch schema", () => {
   });
   it("has all migrations recorded and is safe to run repeatedly", async () => {
     const result = await admin.query<{ filename: string }>("select filename from dispatch_schema_migrations order by filename");
-    expect(result.rows.map((row) => row.filename)).toEqual(["001_durable_dispatch_schema.sql", "002_assignment_invariant_functions.sql", "003_dispatch_runtime_privileges.sql", "004_dispatch_schema_ownership.sql", "005_harden_named_dispatch_functions.sql", "006_atomic_versioned_dispatch_commands.sql", "007_daily_employee_off.sql", "008_employee_routing_origins.sql", "009_owner_login_rate_limit.sql", "010_owner_tour_creation.sql"]);
+    expect(result.rows.map((row) => row.filename)).toEqual(["001_durable_dispatch_schema.sql", "002_assignment_invariant_functions.sql", "003_dispatch_runtime_privileges.sql", "004_dispatch_schema_ownership.sql", "005_harden_named_dispatch_functions.sql", "006_atomic_versioned_dispatch_commands.sql", "007_daily_employee_off.sql", "008_employee_routing_origins.sql", "009_owner_login_rate_limit.sql", "010_owner_tour_creation.sql", "011_employee_master_data.sql"]);
   });
 
   it("creates a durable at-home tour without fabricating customer coordinates", async () => {
