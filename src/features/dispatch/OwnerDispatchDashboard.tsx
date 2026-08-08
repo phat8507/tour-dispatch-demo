@@ -19,7 +19,7 @@ export type OwnerDispatchDashboardProps = {
 };
 
 function statusLabel(value: string): string {
-  return ({ PENDING: "Chờ phân công", ASSIGNED: "Đã phân công", CONFIRMED: "Đã xác nhận", AVAILABLE: "Sẵn sàng", BUSY: "Đang có tour", NEAR_COMPLETION: "Sắp hoàn thành tour", UNKNOWN: "Chưa đủ thông tin", UNAVAILABLE: "Chưa xác định thời gian di chuyển" }[value] ?? value);
+  return ({ PENDING: "Chờ phân công", ASSIGNED: "Đã phân công", CONFIRMED: "Đã xác nhận", SCHEDULED: "Đã lên lịch", IN_PROGRESS: "Đang thực hiện", COMPLETED: "Đã hoàn thành", DELAYED: "Chậm tiến độ", CANCELLED: "Đã hủy", AVAILABLE: "Sẵn sàng", BUSY: "Đang có tour", NEAR_COMPLETION: "Sắp hoàn thành tour", UNKNOWN: "Chưa đủ thông tin", UNAVAILABLE: "Chưa xác định thời gian di chuyển" }[value] ?? "Chưa đủ thông tin");
 }
 
 export function OwnerDispatchDashboard({
@@ -113,15 +113,20 @@ export function OwnerDispatchDashboard({
                             .join(", ")}
                     </span>
                   </button>
-                  <OwnerCandidateRecommendations recommendations={recommendations[index] ?? []} selectedEmployeeId={selectedEmployees[tour.id]} onSelect={(employeeId) => setSelectedEmployees((current) => ({ ...current, [tour.id]: employeeId }))} />
+                  <OwnerCandidateRecommendations recommendations={recommendations[index] ?? []} selectedEmployeeId={selectedEmployees[tour.id]} onSelect={async (employeeId) => { setSelectedEmployees((current) => ({ ...current, [tour.id]: employeeId })); }} />
                   {providerWarnings?.[index] && <p role="alert" className="mt-2 text-xs font-medium text-amber-800">Không thể đánh giá thời gian di chuyển cho tour này.</p>}
                   <OwnerDispatchForm
                     orderId={tour.id}
                     orderVersion={tour.orderVersion}
                     requestedAt={tour.requestedAt}
                     durationMinutes={tour.services.reduce((total, service) => total + service.durationMinutes, 0)}
-                    candidates={(recommendations[index] ?? []).map((candidate) => ({ id: candidate.employeeId, name: candidate.employeeName, requiresOverride: candidate.requiresOverride }))}
+                    candidates={(recommendations[index] ?? []).map((candidate) => ({ id: candidate.employeeId, name: candidate.employeeName, requiresOverride: candidate.requiresOverride, serviceName: candidate.technicalSkills.find((skill) => skill.technicalLevel === "UNKNOWN")?.serviceName }))}
                     selectedEmployeeId={selectedEmployees[tour.id]}
+                    onCancelSelection={() => setSelectedEmployees((current) => {
+                      const next = { ...current };
+                      delete next[tour.id];
+                      return next;
+                    })}
                   />
                 </article>
               );

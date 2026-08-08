@@ -14,6 +14,7 @@ const OwnerDispatchLeafletMap = dynamic(
     ),
   },
 );
+const OwnerDispatchTomTomMap = dynamic(() => import("./OwnerDispatchTomTomMap").then((module) => module.OwnerDispatchTomTomMap), { ssr: false, loading: () => <div className="flex h-[60dvh] items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-sm text-slate-600">Đang tải bản đồ...</div> });
 
 export type OwnerDispatchMapProps = {
   model: OwnerDispatchMapModel;
@@ -22,5 +23,5 @@ export type OwnerDispatchMapProps = {
 };
 
 export function OwnerDispatchMap(props: OwnerDispatchMapProps) {
-  return <OwnerDispatchLeafletMap {...props} />;
+  return process.env.NEXT_PUBLIC_TOMTOM_MAPS_API_KEY ? <OwnerDispatchTomTomMap {...props} /> : <OwnerDispatchLeafletMap {...props} />;
 }

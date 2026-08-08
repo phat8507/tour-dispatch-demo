@@ -49,6 +49,8 @@ export type CandidateRecommendation = {
   warnings: string[];
   travelEvaluation: TravelEvaluation;
   estimatedTravelMinutes?: number;
+  estimatedTravelDistanceMeters?: number;
+  travelOriginSource?: string;
   travelFeasibility?: "FEASIBLE" | "INFEASIBLE" | "UNAVAILABLE";
   nextAssignmentWarning?: "NEXT_ASSIGNMENT_TRAVEL_UNAVAILABLE" | "NEXT_ASSIGNMENT_TRAVEL_INFEASIBLE";
   travelStatus?: "NOT_REQUESTED" | "ESTIMATED_FEASIBLE" | "ESTIMATED_INFEASIBLE" | "UNAVAILABLE";
@@ -186,7 +188,7 @@ export function recommendProductionCandidates(input: ProductionRecommendationInp
   });
 }
 
-export type CandidateTravelEnrichment = Readonly<{ employeeId: string; durationSeconds?: number; feasibility: "FEASIBLE" | "INFEASIBLE" | "UNAVAILABLE"; candidateWarningCodes?: CandidateRecommendation["candidateWarningCodes"]; nextAssignmentWarning?: CandidateRecommendation["nextAssignmentWarning"] }>;
+export type CandidateTravelEnrichment = Readonly<{ employeeId: string; durationSeconds?: number; distanceMeters?: number; originSource?: string; feasibility: "FEASIBLE" | "INFEASIBLE" | "UNAVAILABLE"; candidateWarningCodes?: CandidateRecommendation["candidateWarningCodes"]; nextAssignmentWarning?: CandidateRecommendation["nextAssignmentWarning"] }>;
 
 export function enrichBaselineRecommendations(baseline: readonly CandidateRecommendation[], enrichment: readonly CandidateTravelEnrichment[], urgent: boolean, reorder = true): CandidateRecommendation[] {
   const byEmployee = new Map(enrichment.map((item) => [item.employeeId, item]));
@@ -194,7 +196,7 @@ export function enrichBaselineRecommendations(baseline: readonly CandidateRecomm
     const travel = byEmployee.get(candidate.employeeId);
     if (!travel) return { candidate, baselineIndex, travel: { feasibility: "UNAVAILABLE" as const } };
     const codes = [...(travel.candidateWarningCodes ?? []), ...(travel.feasibility === "INFEASIBLE" ? ["TRAVEL_INFEASIBLE" as const] : [])];
-    return { candidate: { ...candidate, travelFeasibility: travel.feasibility, travelStatus: travel.durationSeconds === undefined ? "UNAVAILABLE" : travel.feasibility === "INFEASIBLE" ? "ESTIMATED_INFEASIBLE" : "ESTIMATED_FEASIBLE", ...(travel.durationSeconds === undefined ? {} : { estimatedTravelMinutes: Math.round(travel.durationSeconds / 60) }), ...(codes.length === 0 ? {} : { candidateWarningCodes: codes }), ...(travel.nextAssignmentWarning === undefined ? {} : { nextAssignmentWarning: travel.nextAssignmentWarning }) }, baselineIndex, travel };
+    return { candidate: { ...candidate, travelFeasibility: travel.feasibility, travelStatus: travel.durationSeconds === undefined ? "UNAVAILABLE" : travel.feasibility === "INFEASIBLE" ? "ESTIMATED_INFEASIBLE" : "ESTIMATED_FEASIBLE", ...(travel.durationSeconds === undefined ? {} : { estimatedTravelMinutes: Math.round(travel.durationSeconds / 60) }), ...(travel.distanceMeters === undefined ? {} : { estimatedTravelDistanceMeters: travel.distanceMeters }), ...(travel.originSource === undefined ? {} : { travelOriginSource: travel.originSource }), ...(codes.length === 0 ? {} : { candidateWarningCodes: codes }), ...(travel.nextAssignmentWarning === undefined ? {} : { nextAssignmentWarning: travel.nextAssignmentWarning }) }, baselineIndex, travel };
   });
   const bucket = (value: CandidateTravelEnrichment["feasibility"]): number => value === "FEASIBLE" ? 0 : value === "INFEASIBLE" ? 1 : 2;
   if (reorder) enriched.sort((left, right) => {

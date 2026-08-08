@@ -101,6 +101,6 @@ describe("owner dispatch dashboard", () => {
         mapModel={{ tours: [persistedTour], tourMarkers: [], branchMarkers: [], warnings: [] }}
       />,
     );
-    expect(screen.getByText("Nhan vien persisted (SCHEDULED) | Ghi đè: Ly do persisted")).toBeTruthy();
+    expect(screen.getByText("Nhan vien persisted (Đã lên lịch) | Ghi đè: Ly do persisted")).toBeTruthy();
   });
 });
