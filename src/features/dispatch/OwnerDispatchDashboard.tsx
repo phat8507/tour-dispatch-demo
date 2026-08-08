@@ -31,6 +31,7 @@ export function OwnerDispatchDashboard({
 }: OwnerDispatchDashboardProps) {
   const [selectedTourId, setSelectedTourId] = useState<string | null>(null);
   const [selectedEmployees, setSelectedEmployees] = useState<Record<string, string>>({});
+  const [reassignmentTours, setReassignmentTours] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!selectedTourId) return;
@@ -73,6 +74,9 @@ export function OwnerDispatchDashboard({
           <div className="max-h-[72dvh] space-y-3 overflow-y-auto pr-1">
             {tours.map((tour, index) => {
               const isSelected = selectedTourId === tour.id;
+              const persistedAssignments = tour.assignments.filter((assignment) => assignment.status !== "CANCELLED");
+              const hasPersistedAssignment = persistedAssignments.length > 0;
+              const isReassigning = reassignmentTours[tour.id] === true;
               return (
                 <article
                   key={tour.id}
@@ -113,21 +117,27 @@ export function OwnerDispatchDashboard({
                             .join(", ")}
                     </span>
                   </button>
-                  <OwnerCandidateRecommendations recommendations={recommendations[index] ?? []} selectedEmployeeId={selectedEmployees[tour.id]} onSelect={async (employeeId) => { setSelectedEmployees((current) => ({ ...current, [tour.id]: employeeId })); }} />
+                  {hasPersistedAssignment && !isReassigning ? (
+                    <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+                      <span>Đã phân {persistedAssignments.map((assignment) => assignment.employeeName).join(", ")}</span>
+                      <button type="button" onClick={() => setReassignmentTours((current) => ({ ...current, [tour.id]: true }))} className="min-h-11 rounded-md border border-emerald-300 bg-white px-3 font-medium">Đổi nhân viên</button>
+                    </div>
+                  ) : <OwnerCandidateRecommendations recommendations={recommendations[index] ?? []} selectedEmployeeId={selectedEmployees[tour.id]} onSelect={async (employeeId) => { setSelectedEmployees((current) => ({ ...current, [tour.id]: employeeId })); }} />}
                   {providerWarnings?.[index] && <p role="alert" className="mt-2 text-xs font-medium text-amber-800">Không thể đánh giá thời gian di chuyển cho tour này.</p>}
-                  <OwnerDispatchForm
+                  {(!hasPersistedAssignment || isReassigning) && <OwnerDispatchForm
                     orderId={tour.id}
                     orderVersion={tour.orderVersion}
                     requestedAt={tour.requestedAt}
                     durationMinutes={tour.services.reduce((total, service) => total + service.durationMinutes, 0)}
                     candidates={(recommendations[index] ?? []).map((candidate) => ({ id: candidate.employeeId, name: candidate.employeeName, requiresOverride: candidate.requiresOverride, serviceName: candidate.technicalSkills.find((skill) => skill.technicalLevel === "UNKNOWN")?.serviceName }))}
                     selectedEmployeeId={selectedEmployees[tour.id]}
+                    oldAssignmentId={isReassigning ? persistedAssignments[0]?.id : undefined}
                     onCancelSelection={() => setSelectedEmployees((current) => {
                       const next = { ...current };
                       delete next[tour.id];
                       return next;
                     })}
-                  />
+                  />}
                 </article>
               );
             })}

@@ -60,6 +60,8 @@ export interface VersionedConfirmAssignmentCommand extends ConfirmAssignmentComm
 export interface VersionedOverrideAssignmentCommand extends OverrideAssignmentCommand {
   expectedOrderVersion: string;
 }
+export interface VersionedReplaceAssignmentCommand extends ReplaceOrderAssignmentCommand { expectedOrderVersion: string; }
+export interface VersionedOverrideReplaceAssignmentCommand extends VersionedReplaceAssignmentCommand { reason: string; }
 
 export interface ReplaceOrderAssignmentCommand {
   oldAssignmentId: string;
@@ -97,6 +99,8 @@ export interface DispatchAssignmentGateway {
   overrideAssignment(command: OverrideAssignmentCommand): Promise<DurableAssignment>;
   confirmAssignmentWithVersion(command: VersionedConfirmAssignmentCommand): Promise<VersionedDurableAssignment>;
   overrideAssignmentWithVersion(command: VersionedOverrideAssignmentCommand): Promise<VersionedDurableAssignment>;
+  replaceOrderAssignmentWithVersion(command: VersionedReplaceAssignmentCommand): Promise<VersionedDurableAssignment>;
+  replaceOrderAssignmentWithOverrideAndVersion(command: VersionedOverrideReplaceAssignmentCommand): Promise<VersionedDurableAssignment>;
   replaceOrderAssignment(command: ReplaceOrderAssignmentCommand): Promise<DurableAssignment>;
   cancelOrder(orderId: string): Promise<void>;
   loadOrderAssignments(orderId: string): Promise<DurableAssignment[]>;

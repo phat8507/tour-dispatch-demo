@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createDispatchServerDependencies } from "@/server/dispatch-composition";
 import { authenticateSession, createSessionToken, verifyOwnerPassword } from "@/server/owner-auth";
-import { confirmDispatchAssignment, markEmployeeOff, overrideDispatchAssignment, unmarkEmployeeOff, upsertEmployeeRoutingOrigin, removeEmployeeRoutingOrigin } from "@/server/dispatch-commands";
+import { confirmDispatchAssignment, markEmployeeOff, overrideDispatchAssignment, unmarkEmployeeOff, upsertEmployeeRoutingOrigin, removeEmployeeRoutingOrigin, replaceDispatchAssignment, overrideReplaceDispatchAssignment } from "@/server/dispatch-commands";
 import { ownerLoginIp } from "@/server/owner-login-rate-limiter";
 import { randomUUID } from "node:crypto";
 
@@ -73,6 +73,8 @@ export async function removeOwnerRoutingOrigin(_: OwnerMutationState, formData: 
   if (result.ok) revalidatePath("/owner");
   return actionState(result);
 }
+export async function replaceOwnerDispatch(_: OwnerMutationState, formData: FormData): Promise<OwnerMutationState> { const input = await mutationInput(formData); const oldAssignmentId = field(formData, "oldAssignmentId"); if (!input || !validUuid(oldAssignmentId)) return { ok: false, message: "Thông tin điều phối không hợp lệ." }; const d = createDispatchServerDependencies(); const result = await replaceDispatchAssignment({ ...input, oldAssignmentId }, (await cookies()).get("dispatch_session")?.value, { ...d, eligibility: d.readModel }); if (result.ok) revalidatePath("/owner"); return actionState(result); }
+export async function overrideReplaceOwnerDispatch(_: OwnerMutationState, formData: FormData): Promise<OwnerMutationState> { const input = await mutationInput(formData); const oldAssignmentId = field(formData, "oldAssignmentId"); const reason = field(formData, "overrideReason"); if (!input || !validUuid(oldAssignmentId) || !reason.trim()) return { ok: false, message: "Cần nhập lý do ghi đè." }; const d = createDispatchServerDependencies(); const result = await overrideReplaceDispatchAssignment({ ...input, oldAssignmentId, reason }, (await cookies()).get("dispatch_session")?.value, { ...d, eligibility: d.readModel }); if (result.ok) revalidatePath("/owner"); return actionState(result); }
 
 export async function createOwnerTour(_: OwnerMutationState, formData: FormData): Promise<OwnerMutationState> {
   const customerName = field(formData, "customerName").trim(); const customerPhone = field(formData, "customerPhone").trim(); const customerAddress = field(formData, "customerAddress").trim();
