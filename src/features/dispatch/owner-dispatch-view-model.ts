@@ -11,8 +11,8 @@ export type OwnerDispatchTour = {
     id: string;
     name: string;
     address: string;
-    latitude: number;
-    longitude: number;
+    latitude: number | null;
+    longitude: number | null;
   };
   services: Array<{ id: string; name: string; durationMinutes: number }>;
   assignments: Array<{

@@ -11,6 +11,8 @@ import type {
   VersionedConfirmAssignmentCommand,
   VersionedDurableAssignment,
   VersionedOverrideAssignmentCommand,
+  VersionedReplaceAssignmentCommand,
+  VersionedOverrideReplaceAssignmentCommand,
 } from "@/domain/dispatch-assignment-gateway";
 
 interface AssignmentRow {
@@ -151,6 +153,13 @@ export class PostgresDispatchAssignmentGateway implements DispatchAssignmentGate
 
   async removeRoutingOrigin(employeeId: string): Promise<void> {
     try { await this.pool.query("select public.remove_employee_routing_origin($1)", [employeeId]); }
+    catch (error) { throw toPersistenceError(error); }
+  }
+  async replaceOrderAssignmentWithVersion(command: VersionedReplaceAssignmentCommand): Promise<VersionedDurableAssignment> { try { const r = await this.pool.query<VersionedAssignmentRow>("select * from public.replace_order_assignment_with_version($1,$2,$3,$4,$5,$6)", [command.oldAssignmentId, command.newAssignmentId, command.employeeId, command.startsAt, command.endsAt, command.expectedOrderVersion]); return { assignment: toAssignment(r.rows[0]), orderVersion: r.rows[0].order_version }; } catch (error) { throw toPersistenceError(error); } }
+  async replaceOrderAssignmentWithOverrideAndVersion(command: VersionedOverrideReplaceAssignmentCommand): Promise<VersionedDurableAssignment> { try { const r = await this.pool.query<VersionedAssignmentRow>("select * from public.replace_order_assignment_with_override_and_version($1,$2,$3,$4,$5,$6,$7)", [command.oldAssignmentId, command.newAssignmentId, command.employeeId, command.startsAt, command.endsAt, command.reason, command.expectedOrderVersion]); return { assignment: toAssignment(r.rows[0]), orderVersion: r.rows[0].order_version }; } catch (error) { throw toPersistenceError(error); } }
+
+  async createOwnerTour(input: { orderId: string; customerName: string; customerPhone: string; customerAddress: string; customerLatitude: number | null; customerLongitude: number | null; requestedAt: string; orderType: "NEW_TOUR" | "MILEAGE"; serviceId: string; notes: string; fulfillment: "HOME" | "BRANCH"; branchId: string }): Promise<void> {
+    try { await this.pool.query("select public.create_owner_tour($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)", [input.orderId, input.customerName, input.customerPhone, input.customerAddress, input.requestedAt, input.orderType, input.serviceId, input.notes, input.fulfillment, input.branchId || null, input.customerLatitude, input.customerLongitude]); }
     catch (error) { throw toPersistenceError(error); }
   }
 }

@@ -75,7 +75,7 @@ describe("owner dispatch dashboard", () => {
         mapModel={{ tours: [], tourMarkers: [], branchMarkers: [], warnings: [] }}
       />,
     );
-    expect(screen.getByText("Chưa có tour cần điều phối.")).toBeTruthy();
+    expect(screen.getByText("Chưa có tour trong ngày này.")).toBeTruthy();
     expect(document.body.textContent).not.toContain("Customer 1");
   });
 
@@ -101,6 +101,16 @@ describe("owner dispatch dashboard", () => {
         mapModel={{ tours: [persistedTour], tourMarkers: [], branchMarkers: [], warnings: [] }}
       />,
     );
-    expect(screen.getByText("Nhan vien persisted (SCHEDULED) | Ghi đè: Ly do persisted")).toBeTruthy();
+    expect(screen.getByText("Nhan vien persisted (Đã lên lịch) | Ghi đè: Ly do persisted")).toBeTruthy();
+    expect(screen.getByText("Đã phân Nhan vien persisted")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Chọn nhân viên/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Đổi nhân viên" }));
+    expect(screen.getByLabelText("Gợi ý nhân viên")).toBeTruthy();
+  });
+
+  it("keeps recommendations visible only for an unassigned tour", () => {
+    const unassigned = tour("unassigned", "Khach moi");
+    render(<OwnerDispatchDashboard tours={[unassigned]} recommendations={[[]]} mapModel={{ tours: [unassigned], tourMarkers: [], branchMarkers: [], warnings: [] }} />);
+    expect(screen.getByLabelText("Gợi ý nhân viên")).toBeTruthy();
   });
 });

@@ -17,6 +17,7 @@ import type {
   OwnerDispatchMapTour,
 } from "./owner-dispatch-map-model";
 import { getOwnerDispatchMarkerPositions } from "./owner-dispatch-map-model";
+import { formatOwnerDateTime } from "./owner-display";
 
 const DEFAULT_CENTER: [number, number] = [16, 106];
 
@@ -97,7 +98,7 @@ function TourMarker({
           <p className="font-semibold">{tour.customerName}</p>
           <p>{tour.locationName}</p>
           <p>{tour.address}</p>
-          <p>{tour.requestedAt}</p>
+          <p>{formatOwnerDateTime(tour.requestedAt)}</p>
           <p>Trạng thái: {tour.markerState}</p>
           <p>Nhân viên: {employees.join(", ") || "Chưa phân công"}</p>
           {tour.assignments
@@ -141,7 +142,7 @@ export function OwnerDispatchLeafletMap({
         center={DEFAULT_CENTER}
         zoom={6}
         scrollWheelZoom
-        className="h-[34rem] w-full"
+        className="h-[60dvh] w-full lg:h-[calc(100dvh-14rem)] lg:min-h-[34rem]"
       >
         <TileLayer
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -172,11 +173,11 @@ export function OwnerDispatchLeafletMap({
           />
         ))}
       </MapContainer>
-      <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-200 bg-white px-4 py-3 text-xs text-slate-700">
-        <span>Cơ sở: xanh lá</span>
-        <span>Đã phân: xanh dương</span>
-        <span>Chưa phân: đỏ</span>
-        <span>Chỉ lịch sử: xám</span>
+      <div className="flex flex-wrap gap-x-4 gap-y-1.5 border-t border-slate-200 bg-white px-4 py-2.5 text-xs text-slate-700">
+        <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-emerald-600" aria-hidden="true" />Cơ sở</span>
+        <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-blue-600" aria-hidden="true" />Đã phân</span>
+        <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-red-600" aria-hidden="true" />Chưa phân</span>
+        <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-slate-500" aria-hidden="true" />Chỉ lịch sử</span>
       </div>
     </div>
   );

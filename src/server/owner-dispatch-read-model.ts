@@ -40,13 +40,15 @@ function productionTourStatus(status: string): "PENDING" | "ASSIGNED" | "COMPLET
 
 export class PostgresOwnerDispatchReadModel {
   constructor(private readonly pool: Pool) {}
-  async listOwnerDispatchTours(): Promise<OwnerDispatchTour[]> {
+  async listOwnerDispatchTours(date?: string): Promise<OwnerDispatchTour[]> {
     try { const result = await this.pool.query<OwnerDispatchTour>(`select o.id, o.customer_name as "customerName", o.customer_phone as "customerPhone", o.requested_at::text as "requestedAt", o.order_type as "orderType", o.urgency, o.status, o.notes,
       json_build_object('id', l.id, 'name', l.name, 'address', l.address, 'latitude', l.latitude, 'longitude', l.longitude) as location,
       coalesce((select json_agg(json_build_object('id', s.id, 'name', s.name, 'durationMinutes', os.duration_minutes) order by s.id) from public.order_services os join public.services s on s.id = os.service_id where os.order_id = o.id), '[]'::json) as services,
       coalesce((select json_agg(json_build_object('id', a.id, 'employeeId', a.employee_id, 'employeeName', e.name, 'startsAt', a.starts_at::text, 'endsAt', a.ends_at::text, 'status', a.status, 'isOverride', a.is_override, 'overrideReason', a.override_reason) order by a.starts_at, a.id) from public.assignments a join public.employees e on e.id = a.employee_id where a.order_id = o.id), '[]'::json) as assignments,
       to_char(o.updated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as "orderVersion"
-      from public.orders o join public.locations l on l.id = o.location_id order by o.requested_at, o.id`);
+      from public.orders o join public.locations l on l.id = o.location_id
+      where ($1::date is null or (o.requested_at at time zone 'Asia/Ho_Chi_Minh')::date = $1::date)
+      order by o.requested_at, o.id`, [date ?? null]);
       return result.rows;
     } catch (error) { throw new OwnerDispatchReadError(error); }
   }
@@ -58,6 +60,10 @@ export class PostgresOwnerDispatchReadModel {
         order by branch_id, id`);
       return result.rows;
     } catch (error) { throw new OwnerDispatchReadError(error); }
+  }
+  async listOwnerDispatchServices(): Promise<Array<{ id: string; name: string; durationMinutes: number }>> {
+    try { return (await this.pool.query<{ id: string; name: string; durationMinutes: number }>("select id, name, default_duration_minutes as \"durationMinutes\" from public.services where is_active order by name, id")).rows; }
+    catch (error) { throw new OwnerDispatchReadError(error); }
   }
   async loadOwnerDispatchTour(orderId: string): Promise<OwnerDispatchTour | undefined> { return (await this.listOwnerDispatchTours()).find((tour) => tour.id === orderId); }
   async listActiveEmployeeCandidatesForOrder(orderId: string): Promise<ActiveEmployeeCandidate[]> {
@@ -115,15 +121,17 @@ export class PostgresOwnerDispatchReadModel {
       for (const row of result.rows) employeesByOrder.get(row.orderId)?.push(recommendationEmployee(row));
       return Promise.all(tours.map(async (tour) => {
         const status = productionTourStatus(tour.status);
+        const destinationCoordinatesAvailable = coordinatesAvailable(tour.location.latitude ?? Number.NaN, tour.location.longitude ?? Number.NaN);
         const baseline = status ? recommendProductionCandidates({
-          tour: { id: tour.id, requestedAt: tour.requestedAt, status, destinationCoordinatesAvailable: coordinatesAvailable(tour.location.latitude, tour.location.longitude), services: tour.services },
+          tour: { id: tour.id, requestedAt: tour.requestedAt, status, destinationCoordinatesAvailable, services: tour.services },
           employees: employeesByOrder.get(tour.id) ?? [], now: now.toISOString(),
         }) : [];
         if (!provider || !origins) return { orderId: tour.id, recommendations: baseline };
         const rows = result.rows.filter((row) => row.orderId === tour.id && baseline.some((candidate) => candidate.employeeId === row.id));
         const candidates: RoutingCandidate[] = rows.map((row) => ({ employeeId: row.id, isActive: row.isActive, isOff: row.isOff, assignments: row.assignments.map((assignment) => ({ id: assignment.id, startsAt: assignment.startsAt, endsAt: assignment.endsAt, status: assignment.status, customer: assignment.customer })), storedOrigin: origins.get(row.id) ?? null, homeBranch: row.homeBranchLatitude === null || row.homeBranchLongitude === null ? null : { latitude: row.homeBranchLatitude, longitude: row.homeBranchLongitude } }));
         const duration = tour.services.reduce((total, service) => total + service.durationMinutes, 0);
-        const orchestration = await orchestrateRecommendationTravel({ candidates, destination: { latitude: tour.location.latitude, longitude: tour.location.longitude }, proposedTourStartsAt: tour.requestedAt, proposedTourEndsAt: new Date(new Date(tour.requestedAt).getTime() + duration * 60_000).toISOString(), now: now.toISOString(), provider });
+        if (!destinationCoordinatesAvailable) return { orderId: tour.id, recommendations: baseline };
+        const orchestration = await orchestrateRecommendationTravel({ candidates, destination: { latitude: tour.location.latitude!, longitude: tour.location.longitude! }, proposedTourStartsAt: tour.requestedAt, proposedTourEndsAt: new Date(new Date(tour.requestedAt).getTime() + duration * 60_000).toISOString(), now: now.toISOString(), provider });
         const urgent = isUrgentTour(tour.requestedAt, now.toISOString());
         return { orderId: tour.id, recommendations: enrichBaselineRecommendations(baseline, orchestration.enrichment, urgent, urgent), ...(orchestration.providerWarning === undefined ? {} : { providerWarning: orchestration.providerWarning }) };
       }));

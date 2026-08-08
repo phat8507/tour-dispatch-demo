@@ -6,7 +6,7 @@ import type { OwnerTourRecommendations, StoredRoutingOrigin } from "./owner-disp
 export const MAX_TRAVEL_BATCH_ITEMS = 300;
 export type ProviderWarning = "NO_PROVIDER" | "TIMEOUT" | "RATE_LIMITED" | "MALFORMED_RESPONSE" | "TOTAL_FAILURE";
 export type RoutingCandidate = Readonly<{ employeeId: string; isActive: boolean; isOff: boolean; assignments: readonly OriginAssignment[]; storedOrigin: RoutingPoint | null; homeBranch: RoutingPoint | null }>;
-type LogicalRequest = Readonly<{ employeeId: string; kind: "TOUR" | "CHAIN"; request: TravelRequestItem; departureAt: string }>;
+type LogicalRequest = Readonly<{ employeeId: string; kind: "TOUR" | "CHAIN"; request: TravelRequestItem; departureAt: string; originSource?: string }>;
 
 export function prepareStoredOriginsForBaseline(recommendations: readonly OwnerTourRecommendations[], origins: ReadonlyMap<string, StoredRoutingOrigin>): ReadonlyMap<string, readonly string[]> {
   const result = new Map<string, readonly string[]>();
@@ -34,7 +34,7 @@ export async function orchestrateRecommendationTravel(input: Readonly<{ candidat
       unavailable.set(candidate.employeeId, { employeeId: candidate.employeeId, feasibility: "UNAVAILABLE", candidateWarningCodes: ["MISSING_ORIGIN"] });
       continue;
     }
-    requested.push({ employeeId: candidate.employeeId, kind: "TOUR", departureAt: origin.departureAt, request: { id: `tour:${candidate.employeeId}:${input.proposedTourStartsAt}:${origin.departureAt}`, origin: origin.point, destination: input.destination, departureAt: origin.departureAt } });
+    requested.push({ employeeId: candidate.employeeId, kind: "TOUR", departureAt: origin.departureAt, originSource: origin.source, request: { id: `tour:${candidate.employeeId}:${input.proposedTourStartsAt}:${origin.departureAt}`, origin: origin.point, destination: input.destination, departureAt: origin.departureAt } });
     const next = candidate.assignments.filter((assignment) => assignment.status !== "CANCELLED" && new Date(assignment.startsAt).getTime() >= proposedEnd).sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime() || left.id.localeCompare(right.id))[0];
     if (next) {
       if (!next.customer) unavailableChain.add(candidate.employeeId);
@@ -87,7 +87,7 @@ export async function orchestrateRecommendationTravel(input: Readonly<{ candidat
     const result = tour ? results.get(physicalIdByLogicalId.get(tour.request.id) ?? "") : undefined;
     if (!tour || !result || result.kind === "UNAVAILABLE") return { employeeId: candidate.employeeId, feasibility: "UNAVAILABLE" as const, ...(chainWarning === undefined ? {} : { nextAssignmentWarning: chainWarning }) };
     const feasible = new Date(tour.departureAt).getTime() + result.durationSeconds * 1000 <= start;
-    return { employeeId: candidate.employeeId, durationSeconds: result.durationSeconds, feasibility: (!urgent || feasible ? "FEASIBLE" : "INFEASIBLE") as "FEASIBLE" | "INFEASIBLE", ...(chainWarning === undefined ? {} : { nextAssignmentWarning: chainWarning }) };
+    return { employeeId: candidate.employeeId, durationSeconds: result.durationSeconds, distanceMeters: result.distanceMeters, originSource: tour?.originSource, feasibility: (!urgent || feasible ? "FEASIBLE" : "INFEASIBLE") as "FEASIBLE" | "INFEASIBLE", ...(chainWarning === undefined ? {} : { nextAssignmentWarning: chainWarning }) };
   });
   return { enrichment, ...(providerWarning === undefined ? {} : { providerWarning }) };
 }

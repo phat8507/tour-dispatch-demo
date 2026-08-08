@@ -59,7 +59,16 @@ describe("durable dispatch schema", () => {
   });
   it("has all migrations recorded and is safe to run repeatedly", async () => {
     const result = await admin.query<{ filename: string }>("select filename from dispatch_schema_migrations order by filename");
-    expect(result.rows.map((row) => row.filename)).toEqual(["001_durable_dispatch_schema.sql", "002_assignment_invariant_functions.sql", "003_dispatch_runtime_privileges.sql", "004_dispatch_schema_ownership.sql", "005_harden_named_dispatch_functions.sql", "006_atomic_versioned_dispatch_commands.sql", "007_daily_employee_off.sql", "008_employee_routing_origins.sql", "009_owner_login_rate_limit.sql"]);
+    expect(result.rows.map((row) => row.filename)).toEqual(["001_durable_dispatch_schema.sql", "002_assignment_invariant_functions.sql", "003_dispatch_runtime_privileges.sql", "004_dispatch_schema_ownership.sql", "005_harden_named_dispatch_functions.sql", "006_atomic_versioned_dispatch_commands.sql", "007_daily_employee_off.sql", "008_employee_routing_origins.sql", "009_owner_login_rate_limit.sql", "010_owner_tour_creation.sql", "011_employee_master_data.sql", "012_owner_tour_destination_coordinates.sql", "013_versioned_reassignment.sql"]);
+  });
+
+  it("creates a durable at-home tour without fabricating customer coordinates", async () => {
+    const serviceId = id("310");
+    const createdOrderId = id("311");
+    await admin.query("insert into services (id, name, default_duration_minutes, refill_duration_minutes) values ($1, 'Create service', 60, 30)", [serviceId]);
+    await runtimePool.query("select public.create_owner_tour($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)", [createdOrderId, "Created Customer", "0900000000", "Customer address", startsAt, "NEW_TOUR", serviceId, "Note", "HOME", null, 10.77, 106.69]);
+    const result = await admin.query("select o.customer_name, l.address, l.latitude, l.longitude, s.id as service_id from orders o join locations l on l.id = o.location_id join order_services os on os.order_id = o.id join services s on s.id = os.service_id where o.id = $1", [createdOrderId]);
+    expect(result.rows).toEqual([{ customer_name: "Created Customer", address: "Customer address", latitude: 10.77, longitude: 106.69, service_id: serviceId }]);
   });
 
   it("allows five failed owner logins in a window then locks the sixth", async () => {
@@ -154,6 +163,42 @@ describe("durable dispatch schema", () => {
     await insertAssignment(id("24"), orderThreeId, employeeTwoId, "SCHEDULED", new Date("2030-01-01T14:30:00.000Z"), new Date("2030-01-01T15:30:00.000Z"));
     await expect(gateway.replaceOrderAssignment({ oldAssignmentId: id("23"), newAssignmentId: id("25"), employeeId: employeeTwoId, startsAt: new Date("2030-01-01T14:30:00.000Z"), endsAt: new Date("2030-01-01T15:30:00.000Z") })).rejects.toMatchObject({ code: "ASSIGNMENT_OVERLAP" });
     expect((await gateway.loadOrderAssignments(orderFourId)).find((assignment) => assignment.id === id("23"))?.status).toBe("SCHEDULED");
+  });
+
+  it("performs a versioned replacement with exactly one active assignment", async () => {
+    await gateway.confirmAssignment({ assignmentId: id("401"), orderId: orderOneId, employeeId: employeeOneId, startsAt, endsAt });
+    const version = (await admin.query<{ version: string }>("select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') as version from orders where id = $1", [orderOneId])).rows[0].version;
+    const replaced = await gateway.replaceOrderAssignmentWithVersion({ oldAssignmentId: id("401"), newAssignmentId: id("402"), employeeId: employeeTwoId, startsAt, endsAt, expectedOrderVersion: version });
+    expect(replaced.orderVersion).not.toBe(version);
+    const active = await admin.query("select employee_id from assignments where order_id = $1 and status in ('SCHEDULED','IN_PROGRESS','DELAYED')", [orderOneId]);
+    expect(active.rows).toEqual([{ employee_id: employeeTwoId }]);
+  });
+
+  it("atomically persists an UNKNOWN-skill replacement override without creating a skill record", async () => {
+    await gateway.confirmAssignment({ assignmentId: id("411"), orderId: orderOneId, employeeId: employeeOneId, startsAt, endsAt });
+    const version = (await admin.query<{ version: string }>("select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') as version from orders where id = $1", [orderOneId])).rows[0].version;
+    const reason = "Ngọc xác nhận phân công thủ công";
+    await gateway.replaceOrderAssignmentWithOverrideAndVersion({ oldAssignmentId: id("411"), newAssignmentId: id("412"), employeeId: employeeTwoId, startsAt, endsAt, reason, expectedOrderVersion: version });
+    const active = await admin.query("select employee_id, is_override, override_reason from assignments where order_id = $1 and status in ('SCHEDULED','IN_PROGRESS','DELAYED')", [orderOneId]);
+    expect(active.rows).toEqual([{ employee_id: employeeTwoId, is_override: true, override_reason: reason }]);
+    await expect(admin.query("select * from employee_service_skills where employee_id = $1", [employeeTwoId])).resolves.toMatchObject({ rows: [] });
+  });
+
+  it("rejects stale and failed replacements without changing the active assignment", async () => {
+    await gateway.confirmAssignment({ assignmentId: id("421"), orderId: orderOneId, employeeId: employeeOneId, startsAt, endsAt });
+    const stale = (await admin.query<{ version: string }>("select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') as version from orders where id = $1", [orderOneId])).rows[0].version;
+    await admin.query("update orders set updated_at = clock_timestamp() where id = $1", [orderOneId]);
+    await expect(gateway.replaceOrderAssignmentWithVersion({ oldAssignmentId: id("421"), newAssignmentId: id("422"), employeeId: employeeTwoId, startsAt, endsAt, expectedOrderVersion: stale })).rejects.toMatchObject({ code: "STALE_VERSION" });
+    await expect(gateway.replaceOrderAssignmentWithOverrideAndVersion({ oldAssignmentId: id("421"), newAssignmentId: id("423"), employeeId: employeeTwoId, startsAt, endsAt, reason: "   ", expectedOrderVersion: stale })).rejects.toMatchObject({ code: "OVERRIDE_REASON_REQUIRED" });
+    const active = await admin.query("select employee_id from assignments where order_id = $1 and status in ('SCHEDULED','IN_PROGRESS','DELAYED')", [orderOneId]);
+    expect(active.rows).toEqual([{ employee_id: employeeOneId }]);
+  });
+
+  it("keeps exactly one active assignment when replacing with the same employee", async () => {
+    await gateway.confirmAssignment({ assignmentId: id("431"), orderId: orderOneId, employeeId: employeeOneId, startsAt, endsAt });
+    const version = (await admin.query<{ version: string }>("select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') as version from orders where id = $1", [orderOneId])).rows[0].version;
+    await expect(gateway.replaceOrderAssignmentWithVersion({ oldAssignmentId: id("431"), newAssignmentId: id("432"), employeeId: employeeOneId, startsAt, endsAt, expectedOrderVersion: version })).rejects.toMatchObject({ code: "PERSISTENCE_FAILURE" });
+    await expect(admin.query("select employee_id from assignments where order_id = $1 and status in ('SCHEDULED','IN_PROGRESS','DELAYED')", [orderOneId])).resolves.toMatchObject({ rows: [{ employee_id: employeeOneId }] });
   });
 
   it("cancels an order and active assignments without deleting completed history", async () => {

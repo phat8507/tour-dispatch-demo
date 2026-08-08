@@ -7,16 +7,19 @@ import type { OwnerDispatchMapModel } from "./owner-dispatch-map-model";
 import { OwnerDispatchMap } from "./OwnerDispatchMap";
 import { OwnerCandidateRecommendations } from "./OwnerCandidateRecommendations";
 import type { CandidateRecommendation } from "@/domain/production-candidate-recommendations";
+import type { ReactNode } from "react";
+import { formatOwnerDateTime } from "./owner-display";
 
 export type OwnerDispatchDashboardProps = {
   tours: OwnerDispatchTour[];
   recommendations: CandidateRecommendation[][];
   providerWarnings?: Array<"NO_PROVIDER" | "TIMEOUT" | "RATE_LIMITED" | "MALFORMED_RESPONSE" | "TOTAL_FAILURE" | undefined>;
   mapModel: OwnerDispatchMapModel;
+  emptyCreateTour?: ReactNode;
 };
 
 function statusLabel(value: string): string {
-  return ({ PENDING: "Chờ phân công", ASSIGNED: "Đã phân công", CONFIRMED: "Đã xác nhận", AVAILABLE: "Sẵn sàng", BUSY: "Đang có tour", NEAR_COMPLETION: "Sắp hoàn thành tour", UNKNOWN: "Chưa đủ thông tin", UNAVAILABLE: "Chưa xác định thời gian di chuyển" }[value] ?? value);
+  return ({ PENDING: "Chờ phân công", ASSIGNED: "Đã phân công", CONFIRMED: "Đã xác nhận", SCHEDULED: "Đã lên lịch", IN_PROGRESS: "Đang thực hiện", COMPLETED: "Đã hoàn thành", DELAYED: "Chậm tiến độ", CANCELLED: "Đã hủy", AVAILABLE: "Sẵn sàng", BUSY: "Đang có tour", NEAR_COMPLETION: "Sắp hoàn thành tour", UNKNOWN: "Chưa đủ thông tin", UNAVAILABLE: "Chưa xác định thời gian di chuyển" }[value] ?? "Chưa đủ thông tin");
 }
 
 export function OwnerDispatchDashboard({
@@ -24,9 +27,11 @@ export function OwnerDispatchDashboard({
   recommendations,
   providerWarnings,
   mapModel,
+  emptyCreateTour,
 }: OwnerDispatchDashboardProps) {
   const [selectedTourId, setSelectedTourId] = useState<string | null>(null);
   const [selectedEmployees, setSelectedEmployees] = useState<Record<string, string>>({});
+  const [reassignmentTours, setReassignmentTours] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!selectedTourId) return;
@@ -44,7 +49,7 @@ export function OwnerDispatchDashboard({
             className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
           >
             <p className="font-semibold">Dữ liệu bản đồ chưa đầy đủ</p>
-            <ul className="mt-1 list-disc pl-5">
+            <ul className="mt-1 list-disc space-y-0.5 pl-5">
               {mapModel.warnings.map((warning) => (
                 <li key={warning}>{warning}</li>
               ))}
@@ -59,14 +64,19 @@ export function OwnerDispatchDashboard({
       </section>
 
       <section aria-label="Danh sách tour" className="order-1 min-w-0">
+        <h2 className="mb-3 text-sm font-semibold tracking-wide text-slate-500 uppercase">Tour cần điều phối</h2>
         {tours.length === 0 ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
-            Chưa có tour cần điều phối.
+          <div className="rounded-xl border border-slate-200 bg-white p-6 text-center">
+            <p className="font-medium text-slate-900">Chưa có tour trong ngày này.</p>
+            <div className="mt-3">{emptyCreateTour}</div>
           </div>
         ) : (
           <div className="max-h-[72dvh] space-y-3 overflow-y-auto pr-1">
             {tours.map((tour, index) => {
               const isSelected = selectedTourId === tour.id;
+              const persistedAssignments = tour.assignments.filter((assignment) => assignment.status !== "CANCELLED");
+              const hasPersistedAssignment = persistedAssignments.length > 0;
+              const isReassigning = reassignmentTours[tour.id] === true;
               return (
                 <article
                   key={tour.id}
@@ -87,7 +97,7 @@ export function OwnerDispatchDashboard({
                       {tour.customerName}
                     </span>
                     <span className="mt-1 block text-sm text-slate-600">
-                      {tour.requestedAt} | {tour.location.name} | {statusLabel(tour.status)}
+                      {formatOwnerDateTime(tour.requestedAt)} | {tour.location.name} | {statusLabel(tour.status)}
                     </span>
                     <span className="mt-1 block text-sm text-slate-600">
                       Dịch vụ: {tour.services.map((service) => service.name).join(", ") || "Không có dịch vụ"}
@@ -107,15 +117,27 @@ export function OwnerDispatchDashboard({
                             .join(", ")}
                     </span>
                   </button>
-                  <OwnerCandidateRecommendations recommendations={recommendations[index] ?? []} selectedEmployeeId={selectedEmployees[tour.id]} onSelect={(employeeId) => setSelectedEmployees((current) => ({ ...current, [tour.id]: employeeId }))} />
-                  {providerWarnings?.[index] && <p role="alert" className="mt-2 text-xs text-amber-800">Không thể đánh giá thời gian di chuyển cho tour này.</p>}
-                  <OwnerDispatchForm
+                  {hasPersistedAssignment && !isReassigning ? (
+                    <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+                      <span>Đã phân {persistedAssignments.map((assignment) => assignment.employeeName).join(", ")}</span>
+                      <button type="button" onClick={() => setReassignmentTours((current) => ({ ...current, [tour.id]: true }))} className="min-h-11 rounded-md border border-emerald-300 bg-white px-3 font-medium">Đổi nhân viên</button>
+                    </div>
+                  ) : <OwnerCandidateRecommendations recommendations={recommendations[index] ?? []} selectedEmployeeId={selectedEmployees[tour.id]} onSelect={async (employeeId) => { setSelectedEmployees((current) => ({ ...current, [tour.id]: employeeId })); }} />}
+                  {providerWarnings?.[index] && <p role="alert" className="mt-2 text-xs font-medium text-amber-800">Không thể đánh giá thời gian di chuyển cho tour này.</p>}
+                  {(!hasPersistedAssignment || isReassigning) && <OwnerDispatchForm
                     orderId={tour.id}
                     orderVersion={tour.orderVersion}
                     requestedAt={tour.requestedAt}
-                    candidates={(recommendations[index] ?? []).map((candidate) => ({ id: candidate.employeeId, name: candidate.employeeName, requiresOverride: candidate.requiresOverride }))}
+                    durationMinutes={tour.services.reduce((total, service) => total + service.durationMinutes, 0)}
+                    candidates={(recommendations[index] ?? []).map((candidate) => ({ id: candidate.employeeId, name: candidate.employeeName, requiresOverride: candidate.requiresOverride, serviceName: candidate.technicalSkills.find((skill) => skill.technicalLevel === "UNKNOWN")?.serviceName }))}
                     selectedEmployeeId={selectedEmployees[tour.id]}
-                  />
+                    oldAssignmentId={isReassigning ? persistedAssignments[0]?.id : undefined}
+                    onCancelSelection={() => setSelectedEmployees((current) => {
+                      const next = { ...current };
+                      delete next[tour.id];
+                      return next;
+                    })}
+                  />}
                 </article>
               );
             })}

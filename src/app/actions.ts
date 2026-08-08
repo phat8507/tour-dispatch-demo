@@ -3,9 +3,10 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createDispatchServerDependencies } from "@/server/dispatch-composition";
-import { createSessionToken, verifyOwnerPassword } from "@/server/owner-auth";
-import { confirmDispatchAssignment, markEmployeeOff, overrideDispatchAssignment, unmarkEmployeeOff, upsertEmployeeRoutingOrigin, removeEmployeeRoutingOrigin } from "@/server/dispatch-commands";
+import { authenticateSession, createSessionToken, verifyOwnerPassword } from "@/server/owner-auth";
+import { confirmDispatchAssignment, markEmployeeOff, overrideDispatchAssignment, unmarkEmployeeOff, upsertEmployeeRoutingOrigin, removeEmployeeRoutingOrigin, replaceDispatchAssignment, overrideReplaceDispatchAssignment } from "@/server/dispatch-commands";
 import { ownerLoginIp } from "@/server/owner-login-rate-limiter";
+import { randomUUID } from "node:crypto";
 
 export type OwnerMutationState = { message: string; ok: boolean };
 function field(formData: FormData, name: string): string { const value = formData.get(name); return typeof value === "string" ? value : ""; }
@@ -71,6 +72,21 @@ export async function removeOwnerRoutingOrigin(_: OwnerMutationState, formData: 
   const result = await removeEmployeeRoutingOrigin({ employeeId }, token, dependencies);
   if (result.ok) revalidatePath("/owner");
   return actionState(result);
+}
+export async function replaceOwnerDispatch(_: OwnerMutationState, formData: FormData): Promise<OwnerMutationState> { const input = await mutationInput(formData); const oldAssignmentId = field(formData, "oldAssignmentId"); if (!input || !validUuid(oldAssignmentId)) return { ok: false, message: "Thông tin điều phối không hợp lệ." }; const d = createDispatchServerDependencies(); const result = await replaceDispatchAssignment({ ...input, oldAssignmentId }, (await cookies()).get("dispatch_session")?.value, { ...d, eligibility: d.readModel }); if (result.ok) revalidatePath("/owner"); return actionState(result); }
+export async function overrideReplaceOwnerDispatch(_: OwnerMutationState, formData: FormData): Promise<OwnerMutationState> { const input = await mutationInput(formData); const oldAssignmentId = field(formData, "oldAssignmentId"); const reason = field(formData, "overrideReason"); if (!input || !validUuid(oldAssignmentId) || !reason.trim()) return { ok: false, message: "Cần nhập lý do ghi đè." }; const d = createDispatchServerDependencies(); const result = await overrideReplaceDispatchAssignment({ ...input, oldAssignmentId, reason }, (await cookies()).get("dispatch_session")?.value, { ...d, eligibility: d.readModel }); if (result.ok) revalidatePath("/owner"); return actionState(result); }
+
+export async function createOwnerTour(_: OwnerMutationState, formData: FormData): Promise<OwnerMutationState> {
+  const customerName = field(formData, "customerName").trim(); const customerPhone = field(formData, "customerPhone").trim(); const customerAddress = field(formData, "customerAddress").trim();
+  const date = field(formData, "date"); const time = field(formData, "time"); const orderType = field(formData, "orderType"); const serviceId = field(formData, "serviceId"); const notes = field(formData, "notes"); const fulfillment = field(formData, "fulfillment"); const branchId = field(formData, "branchId"); const customerLatitude = Number(field(formData, "customerLatitude")); const customerLongitude = Number(field(formData, "customerLongitude"));
+  const requestedAt = /^\d{4}-\d{2}-\d{2}$/.test(date) && /^\d{2}:\d{2}$/.test(time) ? `${date}T${time}:00+07:00` : "";
+  if (!customerName || !requestedAt || !validUuid(serviceId) || !["NEW_TOUR", "MILEAGE"].includes(orderType) || !["HOME", "BRANCH"].includes(fulfillment) || (fulfillment === "HOME" && (!customerAddress || !Number.isFinite(customerLatitude) || customerLatitude < -90 || customerLatitude > 90 || !Number.isFinite(customerLongitude) || customerLongitude < -180 || customerLongitude > 180)) || (fulfillment === "BRANCH" && !["CS1", "CS2"].includes(branchId))) return { ok: false, message: "Chưa xác định được vị trí của địa chỉ này. Vui lòng chọn một địa chỉ trong danh sách gợi ý." };
+  const dependencies = createDispatchServerDependencies(); const token = (await cookies()).get("dispatch_session")?.value;
+  try {
+    authenticateSession(token, dependencies.owner);
+    await dependencies.gateway.createOwnerTour({ orderId: randomUUID(), customerName, customerPhone, customerAddress, customerLatitude: fulfillment === "HOME" ? customerLatitude : null, customerLongitude: fulfillment === "HOME" ? customerLongitude : null, requestedAt, orderType: orderType as "NEW_TOUR" | "MILEAGE", serviceId, notes, fulfillment: fulfillment as "HOME" | "BRANCH", branchId });
+    revalidatePath("/owner"); return { ok: true, message: "Đã tạo tour." };
+  } catch { return { ok: false, message: "Không thể lưu tour. Vui lòng thử lại." }; }
 }
 
 export async function login(formData: FormData): Promise<void> {

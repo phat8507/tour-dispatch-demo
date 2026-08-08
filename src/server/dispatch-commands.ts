@@ -16,6 +16,8 @@ export type DispatchCommandError =
 export interface DispatchEligibility { evaluateEligibility(orderId: string, employeeId: string, options?: { allowUnknownSkill?: boolean }): Promise<EligibilityCause>; }
 export interface ConfirmDispatchInput { orderId: string; employeeId: string; startsAt: string; endsAt: string; expectedOrderVersion: string; }
 export interface OverrideDispatchInput extends ConfirmDispatchInput { reason: string; }
+export interface ReplaceDispatchInput extends ConfirmDispatchInput { oldAssignmentId: string; }
+export interface OverrideReplaceDispatchInput extends ReplaceDispatchInput { reason: string; }
 export interface DailyOffCommandInput { employeeId: string; offDate: string; }
 export type DispatchCommandResult = { ok: true; result: VersionedDurableAssignment } | CommandFailure;
 export type DailyOffCommandResult = { ok: true } | CommandFailure;
@@ -80,6 +82,8 @@ export async function overrideDispatchAssignment(input: OverrideDispatchInput, t
   try { return { ok: true, result: await dependencies.gateway.overrideAssignmentWithVersion({ assignmentId: randomUUID(), ...input, reason: input.reason.trim(), ...interval }) }; }
   catch (error) { return failure(mapPersistence(error)); }
 }
+export async function replaceDispatchAssignment(input: ReplaceDispatchInput, token: string | undefined, dependencies: { owner: OwnerConfig; eligibility: DispatchEligibility; gateway: DispatchAssignmentGateway }): Promise<DispatchCommandResult> { const auth = authorize(token, dependencies.owner); if (auth) return failure(auth); const interval = dates(input); if (!interval || !input.oldAssignmentId) return failure("INVALID_INPUT"); const eligible = await dependencies.eligibility.evaluateEligibility(input.orderId, input.employeeId); if (eligible !== "ELIGIBLE") return failure(eligible); try { return { ok: true, result: await dependencies.gateway.replaceOrderAssignmentWithVersion({ ...input, newAssignmentId: randomUUID(), ...interval }) }; } catch (error) { return failure(mapPersistence(error)); } }
+export async function overrideReplaceDispatchAssignment(input: OverrideReplaceDispatchInput, token: string | undefined, dependencies: { owner: OwnerConfig; eligibility: DispatchEligibility; gateway: DispatchAssignmentGateway }): Promise<DispatchCommandResult> { const auth = authorize(token, dependencies.owner); if (auth) return failure(auth); const interval = dates(input); if (!interval || !input.oldAssignmentId || !input.reason.trim()) return failure("INVALID_INPUT"); const eligible = await dependencies.eligibility.evaluateEligibility(input.orderId, input.employeeId, { allowUnknownSkill: true }); if (eligible !== "ELIGIBLE") return failure(eligible); try { return { ok: true, result: await dependencies.gateway.replaceOrderAssignmentWithOverrideAndVersion({ ...input, reason: input.reason.trim(), newAssignmentId: randomUUID(), ...interval }) }; } catch (error) { return failure(mapPersistence(error)); } }
 
 export async function markEmployeeOff(input: DailyOffCommandInput, token: string | undefined, dependencies: { owner: OwnerConfig; gateway: DispatchAssignmentGateway }): Promise<DailyOffCommandResult> {
   const auth = authorize(token, dependencies.owner); if (auth) return failure(auth);

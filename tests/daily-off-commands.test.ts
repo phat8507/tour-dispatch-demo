@@ -10,7 +10,7 @@ const owner: OwnerConfig = { id: "owner", username: "ngoc", displayName: "Ngoc",
 function gateway(): DispatchAssignmentGateway {
   return {
     confirmAssignment: vi.fn(), overrideAssignment: vi.fn(), confirmAssignmentWithVersion: vi.fn(),
-    overrideAssignmentWithVersion: vi.fn(), replaceOrderAssignment: vi.fn(), cancelOrder: vi.fn(),
+    overrideAssignmentWithVersion: vi.fn(), replaceOrderAssignmentWithVersion: vi.fn(), replaceOrderAssignmentWithOverrideAndVersion: vi.fn(), replaceOrderAssignment: vi.fn(), cancelOrder: vi.fn(),
     loadOrderAssignments: vi.fn(), listToursWithAssignedEmployees: vi.fn(),
     markEmployeeOff: vi.fn().mockResolvedValue({ employeeId: "00000000-0000-4000-8000-000000000001", offDate: "2030-01-01" }),
     unmarkEmployeeOff: vi.fn().mockResolvedValue(undefined),
