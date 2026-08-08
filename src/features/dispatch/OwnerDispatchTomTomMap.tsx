@@ -8,7 +8,20 @@ import type { OwnerDispatchMapModel } from "./owner-dispatch-map-model";
 const defaultCenter: [number, number] = [106.7, 10.78];
 
 function tomTomStyle(key: string): string {
-  return `https://api.tomtom.com/style/2/custom/style/1/json?key=${encodeURIComponent(key)}`;
+  void key;
+  return "https://api.tomtom.com/maps/orbis/assets/styles/0.0.0-0/style?map=basic_street-light";
+}
+
+function tomTomRequest(url: string, key: string): maplibregl.RequestParameters {
+  const parsed = new URL(url);
+  if (parsed.hostname !== "api.tomtom.com") return { url };
+  return {
+    url,
+    headers: {
+      "TomTom-Api-Key": key,
+      "TomTom-Api-Version": parsed.pathname.includes("/assets/") ? "1" : "2",
+    },
+  };
 }
 
 type Props = {
@@ -72,7 +85,7 @@ export function OwnerDispatchTomTomMap({ model, selectedTourId, onSelectTour }: 
     if (!container || !key || mapRef.current) return;
 
     let active = true;
-    const map = new maplibregl.Map({ container, style: tomTomStyle(key), center: defaultCenter, zoom: 10 });
+    const map = new maplibregl.Map({ container, style: tomTomStyle(key), center: defaultCenter, zoom: 10, transformRequest: (url) => tomTomRequest(url, key) });
     mapRef.current = map;
     map.addControl(new maplibregl.NavigationControl());
 

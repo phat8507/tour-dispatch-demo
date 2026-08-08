@@ -61,7 +61,7 @@ describe("OwnerDispatchTomTomMap lifecycle", () => {
 
   it("initializes the TomTom base style once, independently of dispatch data", () => {
     render(<OwnerDispatchTomTomMap model={emptyModel} selectedTourId={null} onSelectTour={vi.fn()} />);
-    expect(mapSpies.maps[0].options.style).toContain("api.tomtom.com/style");
+    expect(mapSpies.maps[0].options.style).toContain("api.tomtom.com/maps/orbis/assets/styles");
     expect(mapSpies.maps).toHaveLength(1);
   });
 
